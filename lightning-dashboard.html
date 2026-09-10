@@ -1,0 +1,2914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stadium Lightning Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#0a0e14;
+    --bg-2:#0d131b;
+    --panel:#121922;
+    --panel-2:#161f2b;
+    --panel-3:#1b2531;
+    --line:#232f3d;
+    --line-bright:#324459;
+    --ink:#e7edf3;
+    --ink-dim:#93a4b6;
+    --ink-faint:#5e7189;
+    --accent:#3ddc84;
+    --accent-dim:#1f7a4c;
+    --accent-ink:#04140a;
+    --electric:#5ec8f2;
+    --echo-green:#3ddc84;
+    --echo-yellow:#f0c33c;
+    --echo-red:#ef4b3d;
+    --echo-purple:#c266e8;
+    --watch:#f0c33c;
+    --warn:#ef4b3d;
+    --advisory:#5ec8f2;
+    --safe:#3ddc84;
+    --caution:#f0c33c;
+    --danger:#ef4b3d;
+    --sans: 'Public Sans', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+    --radius:14px;
+    --radius-sm:9px;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.55);
+  }
+  /* ---------- daylight (high-contrast, outdoor-readable) theme ---------- */
+  html[data-theme="light"]{
+    --bg:#eef1f4;
+    --bg-2:#e6eaee;
+    --panel:#ffffff;
+    --panel-2:#f1f4f7;
+    --panel-3:#e6eaee;
+    --line:#c7d0da;
+    --line-bright:#9fb0c0;
+    --ink:#0c1420;
+    --ink-dim:#3c4c5e;
+    --ink-faint:#5f7488;
+    --accent:#0a8a4d;
+    --accent-dim:#076c3c;
+    --accent-ink:#ffffff;
+    --electric:#0a6fa8;
+    --echo-green:#0a8a4d;
+    --echo-yellow:#93640a;
+    --echo-red:#c22626;
+    --echo-purple:#8a2fac;
+    --watch:#93640a;
+    --warn:#c2571a;
+    --advisory:#0a6fa8;
+    --safe:#0a8a4d;
+    --caution:#93640a;
+    --danger:#c22626;
+    --shadow:0 1px 2px rgba(20,30,45,.08), 0 8px 20px -14px rgba(20,30,45,.25);
+  }
+  html[data-theme="light"] body{background: var(--bg);}
+  html[data-theme="light"] .decision.safe{background:linear-gradient(160deg,#e2f6ea,var(--panel) 70%);box-shadow:0 0 30px -20px #0a8a4d40;}
+  html[data-theme="light"] .decision.caution{background:linear-gradient(160deg,#fbf1d9,var(--panel) 70%);box-shadow:0 0 30px -20px #93640a40;}
+  html[data-theme="light"] .decision.danger{background:linear-gradient(160deg,#fbe2e0,var(--panel) 70%);box-shadow:0 0 30px -20px #c2262640;}
+  html[data-theme="light"] .toggle-opt.active{background:linear-gradient(180deg,#e2f6ea,#d7f0e0);color:#063a20;box-shadow:0 0 0 1px var(--accent) inset;}
+  html[data-theme="light"] #venueMap, html[data-theme="light"] .leaflet-container{background:#dfe6ec;}
+  html[data-theme="light"] .radar-fallback{color:#aab6c2;} /* radar box is always black — keep this readable regardless of theme */
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);}
+  body{padding:32px 24px 70px;background:
+      radial-gradient(1100px 500px at 12% -10%, #0f2a1f55, transparent 60%),
+      radial-gradient(900px 460px at 100% 0%, #10263a66, transparent 55%),
+      var(--bg);}
+  .wrap{max-width:1360px;margin:0 auto;}
+  ::selection{background:var(--accent-dim);color:#fff;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:var(--line-bright);border-radius:6px;}
+
+  /* ---------- header ---------- */
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;
+    border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:26px;}
+  .brand{display:flex;flex-direction:column;gap:5px;}
+  .brand-mark{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--accent);display:flex;align-items:center;gap:7px;}
+  .brand-mark::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  h1{margin:0;font-size:29px;font-weight:800;letter-spacing:-0.015em;}
+  .sub{color:var(--ink-dim);font-size:13.5px;max-width:58ch;line-height:1.55;}
+  .clock{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);text-align:right;}
+  .clock b{color:var(--ink-dim);font-weight:500;display:block;font-size:15px;}
+
+  /* ---------- layout helpers ---------- */
+  .hero-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;margin-bottom:18px;}
+  @media(max-width:960px){.hero-grid{grid-template-columns:1fr;}}
+  .side-sticky{position:sticky;top:16px;}
+  @media(max-width:960px){.side-sticky{position:static;}}
+
+  /* ---------- stadium picker ---------- */
+  .picker{background:linear-gradient(180deg, var(--panel-3), var(--panel));border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 20px 22px;margin-bottom:18px;box-shadow:var(--shadow);}
+  .picker-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .picker-head h2{font-size:15px;margin:0;text-transform:none;color:var(--ink);font-weight:700;letter-spacing:-.01em;}
+  .state-tabs{display:flex;gap:6px;flex-wrap:wrap;}
+  .state-tab{font-family:var(--mono);font-size:11.5px;padding:6px 13px;border-radius:20px;border:1px solid var(--line-bright);
+    background:var(--panel-2);color:var(--ink-dim);cursor:pointer;transition:all .12s ease;}
+  .state-tab:hover{border-color:var(--accent-dim);color:var(--ink);}
+  .state-tab.active{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700;}
+  .stadium-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
+  .stadium-card{text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 14px;cursor:pointer;
+    transition:all .14s ease;}
+  .stadium-card:hover{border-color:var(--line-bright);transform:translateY(-1px);box-shadow:var(--shadow);}
+  .stadium-card.selected{border-color:var(--echo-green);box-shadow:0 0 0 1px var(--echo-green) inset;}
+  .stadium-name{font-weight:600;font-size:13.5px;margin-bottom:2px;}
+  .stadium-meta{font-size:11.5px;color:var(--ink-faint);}
+  .tag{display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;padding:2px 7px;border-radius:4px;
+    background:var(--panel-3);color:var(--ink-dim);margin-top:6px;border:1px solid var(--line);}
+  .tag.pro{color:#f2b56b;border-color:#f2b56b44;}
+  .tag.custom-tag{color:var(--electric);border-color:var(--electric)44;}
+
+  /* ---------- generic section ---------- */
+  section.block{background:linear-gradient(180deg, var(--panel-3), var(--panel));border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;margin-bottom:18px;box-shadow:var(--shadow);}
+  .block-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
+  .block-head h2{font-size:15.5px;margin:0;font-weight:700;letter-spacing:-.01em;}
+  .block-head .hint{font-size:11.5px;color:var(--ink-faint);}
+  .empty-state{color:var(--ink-faint);font-size:13px;padding:20px 4px;line-height:1.6;}
+
+  /* ---------- conditions grid ---------- */
+  .cond-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+  .cond-cell{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;}
+  .cond-cell .k{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;}
+  .cond-cell .v{font-family:var(--mono);font-size:18px;margin-top:3px;font-weight:600;}
+  .cond-cell .v small{font-size:11px;color:var(--ink-dim);font-weight:400;}
+  @media(max-width:760px){.cond-grid{grid-template-columns:repeat(2,1fr);}}
+
+  /* ---------- short-term outlook ---------- */
+  .outlook-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+  .outlook-cell{flex:0 0 108px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 10px;text-align:center;}
+  .outlook-cell.stormy{border-color:var(--warn);background:linear-gradient(180deg,var(--panel-2),var(--panel-2));box-shadow:0 0 0 1px var(--warn) inset;}
+  .outlook-cell .oc-time{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;}
+  .outlook-cell .oc-temp{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:3px;}
+  .outlook-cell .oc-fc{font-size:11px;color:var(--ink-dim);margin-top:4px;line-height:1.35;min-height:28px;}
+  .outlook-cell .oc-pop{font-family:var(--mono);font-size:10.5px;color:var(--electric);margin-top:4px;}
+  .outlook-cell.stormy .oc-pop{color:var(--warn);font-weight:700;}
+
+  .alert-item{display:flex;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);margin-bottom:8px;}
+  .alert-dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none;}
+  .alert-item b{font-size:13px;}
+  .alert-item p{margin:3px 0 0;font-size:12px;color:var(--ink-dim);line-height:1.5;}
+  .no-alert{display:flex;align-items:center;gap:8px;color:var(--safe);font-size:13px;font-family:var(--mono);}
+
+  /* ---------- radar ---------- */
+  .radar-wrap{display:flex;gap:18px;flex-wrap:wrap;}
+  .radar-img-box{flex:1 1 340px;background:#000;border-radius:8px;overflow:hidden;border:1px solid var(--line);position:relative;
+    cursor:grab;touch-action:none;}
+  .radar-img-box.dragging{cursor:grabbing;}
+  .radar-img-box.zoomed{border-color:var(--line-bright);}
+  .radar-zoom-layer{position:relative;transform-origin:0 0;will-change:transform;}
+  .radar-zoom-layer img{width:100%;display:block;pointer-events:none;}
+  .radar-fallback{color:var(--ink-faint);font-size:12.5px;text-align:center;padding:60px 20px;font-family:var(--mono);min-height:220px;
+    display:flex;align-items:center;justify-content:center;}
+  .venue-star{position:absolute;transform:translate(-50%,-50%);color:#ffd54f;font-size:22px;line-height:1;
+    text-shadow:0 0 3px #000,0 0 6px #000,0 0 1px #000;pointer-events:none;z-index:5;}
+
+  /* ---------- venue map ---------- */
+  #venueMap{height:320px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#1c2833;}
+  .venue-star-icon{color:#ffd54f;font-size:22px;line-height:1;text-shadow:0 0 3px #000,0 0 6px #000;text-align:center;}
+  .radar-site-icon{font-size:18px;line-height:1;text-align:center;}
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip{background:var(--panel-2);color:var(--ink);}
+  .leaflet-popup-content{font-family:var(--sans);font-size:12.5px;}
+  .leaflet-container{background:#1c2833;font-family:var(--sans);}
+  .radar-side{flex:1 1 220px;display:flex;flex-direction:column;gap:8px;}
+  .kv{display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;border-bottom:1px dashed var(--line);}
+  .kv span:first-child{color:var(--ink-faint);}
+  .kv span:last-child{font-family:var(--mono);}
+  a.ext-link{color:#6cc2f2;font-size:12.5px;text-decoration:none;border-bottom:1px solid rgba(108,194,242,.3);}
+  a.ext-link:hover{border-color:#6cc2f2;}
+
+  /* ---------- radar mark-up ---------- */
+  .mark-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
+  .mark-btn{font-family:var(--mono);font-size:11.5px;padding:7px 12px;border-radius:6px;border:1px solid var(--line-bright);
+    background:var(--panel-2);color:var(--ink-dim);cursor:pointer;}
+  .mark-btn.arm1{border-color:#6cc2f2;}
+  .mark-btn.arm1.active{background:#6cc2f2;color:#062633;}
+  .mark-btn.arm2{border-color:#f2b56b;}
+  .mark-btn.arm2.active{background:#f2b56b;color:#331d06;}
+  .mark-btn.clear{margin-left:auto;}
+  .calib{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--ink-faint);}
+  .calib input{width:64px;padding:4px 6px;font-size:11.5px;}
+  .mark-dot{position:absolute;width:16px;height:16px;border-radius:50%;transform:translate(-50%,-50%);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;font-weight:700;
+    pointer-events:none;box-shadow:0 0 0 2px rgba(0,0,0,.5);}
+  .mark-dot.track-past{background:#6cc2f2;color:#062633;}
+  .mark-dot.track-current{background:#e0432c;color:#fff;width:20px;height:20px;font-size:10px;}
+  .track-point-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px;}
+  .track-point-row .idx{width:20px;color:var(--ink-faint);}
+  .track-point-row input{width:90px;padding:4px 6px;font-size:11px;}
+  .track-point-row input.tp-time{width:70px;}
+
+  /* ---------- custom venue search results ---------- */
+  .cv-result{padding:8px 10px;border:1px solid var(--line);border-radius:7px;margin-bottom:6px;cursor:pointer;font-size:12.5px;}
+  .cv-result:hover{border-color:var(--echo-green);}
+  .cv-result.picked{border-color:var(--echo-green);background:#12241a;}
+  .cv-result .rname{font-weight:600;color:var(--ink);}
+  .cv-result .raddr{color:var(--ink-faint);font-size:11px;margin-top:2px;}
+  .mark-hint{font-size:11.5px;color:var(--ink-faint);margin-bottom:10px;}
+
+  /* ---------- lead-time breakdown ---------- */
+  .breakdown{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line-bright);display:flex;flex-direction:column;gap:5px;}
+  .breakdown-row{display:flex;justify-content:space-between;font-size:12px;font-family:var(--mono);color:var(--ink-faint);}
+  .breakdown-row.on{color:var(--ink);}
+  .breakdown-row .amt{color:inherit;}
+
+  /* ---------- forms ---------- */
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:700px){.form-grid{grid-template-columns:1fr;}}
+  .form-grid-3{grid-template-columns:1fr 1fr 1fr;}
+  @media(max-width:1080px){.form-grid-3{grid-template-columns:1fr 1fr;}}
+  @media(max-width:700px){.form-grid-3{grid-template-columns:1fr;}}
+  /* 4 fieldsets: 2x2 by default (clean, no odd 3+1 wrap), 4-across on very wide screens */
+  .form-grid-4{grid-template-columns:1fr 1fr;}
+  @media(min-width:1300px){.form-grid-4{grid-template-columns:1fr 1fr 1fr 1fr;}}
+  @media(max-width:700px){.form-grid-4{grid-template-columns:1fr;}}
+  .cap-bar-track{height:8px;border-radius:5px;background:var(--panel-3);overflow:hidden;margin-top:8px;}
+  .cap-bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--electric));transition:width .3s ease;}
+  fieldset{border:1px solid var(--line);border-radius:8px;padding:12px 14px 14px;margin:0;}
+  legend{font-family:var(--mono);font-size:11px;color:var(--ink-dim);padding:0 6px;letter-spacing:.04em;}
+  label.field{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:10px;}
+  label.field span{display:block;margin-bottom:4px;}
+  input[type=text], input[type=number], input[type=time], select{
+    width:100%;background:var(--panel-2);border:1px solid var(--line-bright);border-radius:6px;color:var(--ink);
+    padding:7px 9px;font-family:var(--mono);font-size:13px;}
+  input:focus, select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .btn{font-family:var(--sans);font-weight:700;font-size:13px;padding:9px 18px;border-radius:8px;border:1px solid var(--accent);
+    background:var(--accent);color:var(--accent-ink);cursor:pointer;transition:filter .12s ease, transform .12s ease;}
+  .btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+  .btn.ghost{background:var(--panel-2);color:var(--ink-dim);border-color:var(--line-bright);}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--accent-dim);}
+  .btn.ghost.active{background:var(--accent-dim);border-color:var(--accent);color:#fff;}
+  .result-card{margin-top:14px;background:var(--panel-2);border:1px solid var(--line-bright);border-radius:var(--radius-sm);padding:14px 16px;}
+  .result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;}
+  @media(max-width:700px){.result-grid{grid-template-columns:1fr 1fr;}}
+  .result-grid .r{text-align:left;}
+  .result-grid .r .k{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;}
+  .result-grid .r .v{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:2px;}
+
+  /* ---------- event-type pills & demographic checkboxes ---------- */
+  .pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+  .pill-btn{font-family:var(--mono);font-size:11px;padding:6px 13px;border-radius:20px;border:1px solid var(--line-bright);
+    background:var(--panel-2);color:var(--ink-dim);cursor:pointer;transition:all .12s ease;}
+  .pill-btn:hover{border-color:var(--accent-dim);color:var(--ink);}
+  .pill-btn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700;}
+  .demo-checkrow{display:flex;align-items:center;gap:8px;margin-top:10px;}
+  .demo-checkrow input{margin:0;accent-color:var(--accent);}
+  .demo-checkrow label{font-size:12.5px;color:var(--ink-dim);cursor:pointer;}
+  .alert-copy-line{background:var(--panel-2);border-left:3px solid var(--electric);border-radius:0 8px 8px 0;padding:9px 12px;margin-bottom:8px;font-size:12.5px;color:var(--ink-dim);line-height:1.5;}
+  .alert-copy-line.exterior{border-color:var(--caution);}
+  .map-legend{display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--ink-faint);flex-wrap:wrap;}
+  .map-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend-dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+
+  /* checklist */
+  .check-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;}
+  @media(max-width:700px){.check-grid{grid-template-columns:1fr;}}
+  .check-item{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line);}
+  .check-item input{margin-top:3px;accent-color:var(--accent);}
+  .check-item label{font-size:12.5px;color:var(--ink-dim);line-height:1.4;cursor:pointer;}
+  .check-item label b{color:var(--ink);font-weight:600;}
+
+  .mode-result{display:flex;gap:14px;align-items:center;margin-top:14px;padding:14px 16px;border-radius:var(--radius-sm);background:var(--panel-2);border:1px solid var(--line-bright);}
+  .mode-badge{font-family:var(--mono);font-size:12px;padding:6px 12px;border-radius:20px;white-space:nowrap;font-weight:700;}
+  .mode-text{font-size:12.5px;color:var(--ink-dim);line-height:1.55;}
+
+  /* ---------- storm mode tabs ---------- */
+  .mode-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel-2);border:1px solid var(--line-bright);
+    border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;}
+  .mode-summary-label{font-family:var(--mono);font-size:10px;color:var(--ink-faint);letter-spacing:.06em;}
+  .mode-summary-badge{font-family:var(--mono);font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:20px;background:var(--panel-3);color:var(--ink-dim);}
+  .mode-summary-src{font-size:12px;color:var(--ink-dim);}
+  .tab-row{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tab-btn{font-family:var(--sans);font-size:12.5px;font-weight:600;padding:9px 16px;border:none;background:none;color:var(--ink-faint);
+    cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .12s ease;}
+  .tab-btn:hover{color:var(--ink-dim);}
+  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  .auto-card{padding:14px 16px;border-radius:var(--radius-sm);background:var(--panel-2);border:1px solid var(--line-bright);}
+  .auto-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .auto-finding{border-left:3px solid var(--line-bright);padding:6px 0 6px 12px;margin-bottom:8px;}
+  .auto-finding .tag-row{display:flex;gap:8px;align-items:baseline;margin-bottom:3px;flex-wrap:wrap;}
+  .auto-finding .fk{font-family:var(--mono);font-size:11px;font-weight:700;}
+  .auto-finding .fsrc{font-size:10.5px;color:var(--ink-faint);}
+  .auto-quote{font-size:12.5px;color:var(--ink-dim);line-height:1.5;font-style:italic;}
+
+  /* venue */
+  .toggle-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .toggle-opt{flex:1;min-width:90px;text-align:center;padding:10px 6px;border-radius:var(--radius-sm);border:1px solid var(--line-bright);
+    background:var(--panel-2);cursor:pointer;font-size:12.5px;color:var(--ink-dim);transition:all .12s ease;}
+  .toggle-opt:hover{border-color:var(--accent-dim);}
+  .toggle-opt.active{background:linear-gradient(180deg,#173324,#122718);border-color:var(--accent);color:#bdf5d4;box-shadow:0 0 0 1px var(--accent) inset;}
+
+  .decision{border-radius:var(--radius);padding:20px 22px;margin-top:16px;border:1px solid var(--line-bright);transition:all .25s ease;}
+  .decision.safe{background:linear-gradient(160deg,#13291d,var(--panel) 70%);border-color:#3ddc8455;box-shadow:0 0 40px -20px #3ddc8440;}
+  .decision.caution{background:linear-gradient(160deg,#2b2412,var(--panel) 70%);border-color:#f0c33c55;box-shadow:0 0 40px -20px #f0c33c40;}
+  .decision.danger{background:linear-gradient(160deg,#2c1613,var(--panel) 70%);border-color:#ef4b3d55;box-shadow:0 0 40px -20px #ef4b3d40;}
+  .decision-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .decision-dot{width:12px;height:12px;border-radius:50%;}
+  .decision-title{font-size:16px;font-weight:800;}
+  .decision-body{font-size:13px;color:var(--ink-dim);line-height:1.6;}
+  .decision-nums{display:flex;gap:28px;margin-top:12px;flex-wrap:wrap;}
+  .decision-nums .n .k{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;}
+  .decision-nums .n .v{font-family:var(--mono);font-size:20px;font-weight:700;}
+
+  footer{margin-top:26px;font-size:11.5px;color:var(--ink-faint);line-height:1.6;border-top:1px solid var(--line);padding-top:14px;}
+
+  /* ---------- decision log ---------- */
+  .log-entry{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
+  .log-entry-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .log-entry-head b{font-size:13px;}
+  .log-entry-head .ts{font-family:var(--mono);font-size:11px;color:var(--ink-faint);}
+  .log-entry-body{font-size:12px;color:var(--ink-dim);line-height:1.6;}
+  .log-del{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);background:none;border:1px solid var(--line-bright);
+    border-radius:5px;padding:2px 8px;cursor:pointer;}
+
+  /* ---------- print summary ---------- */
+  @media print{
+    body > .wrap > *:not(#printSummary){display:none !important;}
+    #printSummary{display:block !important;color:#000;background:#fff;font-family:var(--sans);}
+    #printSummary h1{font-size:20px;margin-bottom:4px;}
+    #printSummary table{width:100%;border-collapse:collapse;margin:10px 0;}
+    #printSummary td{padding:5px 8px;border-bottom:1px solid #ccc;font-size:12.5px;}
+    #printSummary td:first-child{color:#555;width:40%;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="brand-mark">GAME-DAY LIGHTNING OPS</span>
+      <h1>Stadium Lightning Dashboard</h1>
+      <div class="sub">Search any outdoor venue nationwide for live NWS conditions and radar, then combine storm motion, storm-mode, crowd/event demographics, and lightning-delay lead-time into one clearing call for on-site meteorologists.</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <button class="btn ghost" id="themeToggleBtn" type="button" style="white-space:nowrap;">☀ Daylight mode</button>
+      <div class="clock"><b id="clockTime">—</b><span id="clockDate">—</span></div>
+    </div>
+  </header>
+
+  <div class="hero-grid">
+  <div>
+  <!-- VENUE SEARCH (any outdoor venue, anywhere) -->
+  <div class="picker" id="customVenuesPanel">
+    <div class="picker-head">
+      <h2>🔍 Search any outdoor venue</h2>
+      <button class="btn ghost" id="toggleAddVenueBtn">Hide search</button>
+    </div>
+    <div class="hint" style="margin-bottom:10px;">NWS conditions, radar, the map, storm tracking, and shelter guidance all run off latitude/longitude — none of it is actually limited to Louisiana or Kentucky. Search by name for any outdoor venue nationwide; capacity auto-fills from Wikidata when available.</div>
+
+    <div id="addVenueForm" style="display:block; border:1px solid var(--line-bright); border-radius:8px; padding:14px 16px; margin-bottom:14px;">
+      <fieldset>
+        <legend>SEARCH FOR THE VENUE</legend>
+        <label class="field"><span>Venue name, place, or address</span><input type="text" id="cvAddress" placeholder="e.g. Doak Campbell Stadium, Tallahassee"></label>
+        <div style="display:flex; gap:8px; margin-bottom:6px;">
+          <button class="btn ghost" id="cvGeocodeBtn" type="button">Search</button>
+          <span class="hint" id="cvGeocodeStatus" style="align-self:center;"></span>
+        </div>
+        <div id="cvResults"></div>
+      </fieldset>
+
+      <div class="form-grid" style="margin-top:12px;">
+        <fieldset>
+          <legend>VENUE INFO</legend>
+          <label class="field"><span>Venue name</span><input type="text" id="cvName" placeholder="pick a result above, or type your own"></label>
+          <label class="field"><span>Team / event (optional)</span><input type="text" id="cvTeam" placeholder="e.g. Florida State Seminoles"></label>
+          <label class="field"><span>Sport</span>
+            <select id="cvSport">
+              <option value="football">Football</option>
+              <option value="baseball">Baseball</option>
+              <option value="softball">Softball</option>
+              <option value="soccer">Soccer</option>
+              <option value="golf">Golf</option>
+            </select>
+          </label>
+          <label class="field"><span>Capacity (seats, or approx. gallery for golf)</span><input type="number" id="cvCapacity" placeholder="auto-fills from Wikidata when found"></label>
+          <div class="hint" id="cvCapStatus"></div>
+        </fieldset>
+        <fieldset>
+          <legend>CONFIRMED LOCATION</legend>
+          <label class="field"><span>Latitude</span><input type="text" id="cvLat" placeholder="pick a result above, or enter manually"></label>
+          <label class="field"><span>Longitude</span><input type="text" id="cvLon" placeholder="pick a result above, or enter manually"></label>
+        </fieldset>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:10px;">
+        <button class="btn" id="cvSaveBtn">Save &amp; view venue</button>
+        <button class="btn ghost" id="cvCancelBtn">Clear</button>
+      </div>
+      <div class="hint" style="margin-top:8px;">Location search: OpenStreetMap Nominatim. Capacity: Wikidata, where the venue has an entry. Both free, no key — double-check before relying on either for precision-critical decisions.</div>
+    </div>
+
+    <div class="stadium-grid" id="customVenueGrid"></div>
+    <div class="empty-state" id="customVenueEmpty">No custom venues saved yet.</div>
+  </div>
+
+  <!-- RADAR -->
+  <section class="block" id="radarBlock">
+    <div class="block-head">
+      <h2>Nearest WSR-88D radar</h2>
+      <span class="hint" id="radarHint">—</span>
+    </div>
+    <div id="radarBody"><div class="empty-state">Radar will load once a venue is selected.</div></div>
+  </section>
+  </div>
+
+  <div class="side-sticky">
+  <!-- VENUE MAP -->
+  <section class="block" id="mapBlock">
+    <div class="block-head">
+      <h2>Venue location</h2>
+      <span class="hint" id="mapHint">Star marks the stadium; the dish icon marks the radar site used above</span>
+    </div>
+    <div id="venueMap"></div>
+    <div class="map-legend">
+      <span><span class="legend-dot" style="background:#ffd54f;"></span>Venue</span>
+      <span><span class="legend-dot" style="background:#6cc2f2;"></span>Radar site</span>
+      <span><span class="legend-dot" style="background:var(--watch);"></span>Severe T-storm warning</span>
+      <span><span class="legend-dot" style="background:var(--warn);"></span>Tornado warning</span>
+    </div>
+    <div class="cond-grid" style="margin-top:10px;" id="mapStats"></div>
+  </section>
+
+  <!-- CONDITIONS -->
+  <section class="block" id="condBlock">
+    <div class="block-head">
+      <h2>Current conditions &amp; active alerts</h2>
+      <span class="hint" id="condHint">Select a venue above</span>
+    </div>
+    <div id="condBody"><div class="empty-state">No venue selected.</div></div>
+  </section>
+
+  <!-- SHORT-TERM OUTLOOK -->
+  <section class="block" id="outlookBlock">
+    <div class="block-head">
+      <h2>Short-term outlook</h2>
+      <span class="hint" id="outlookHint">NWS hourly forecast, next several hours</span>
+    </div>
+    <div id="outlookBody"><div class="empty-state">Select a venue to load the hourly outlook.</div></div>
+  </section>
+
+  <!-- SSEC STADIUM DSS DASHBOARD -->
+  <section class="block" id="ssecBlock">
+    <div class="block-head">
+      <h2>SSEC Stadium DSS dashboard</h2>
+    </div>
+    <div style="border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden;">
+      <iframe style="width:100%;height:480px;border:none;display:block;background:#0d1117;" src="https://grafana-public.ssec.wisc.edu/grafana/d/cca85e59-9e80-4fd0-bde4-e0cc0cec31ae/dss-and-stadiums?orgId=1&from=now-1h&to=now&timezone=browser&var-Location=West%20Virginia:%20Mountaineer%20Field%20at%20Milan%20Puskar%20Stadium&refresh=1m" loading="lazy"></iframe>
+    </div>
+  </section>
+  </div>
+  </div>
+
+  <!-- STORM MOTION -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Storm track (SCIT-style) &amp; speed-to-venue</h2>
+      <span class="hint">Auto-populates from real NWS-reported storm motion when an active warning covers this venue; click "Add track point" on the radar above to add or extend it manually</span>
+    </div>
+    <div id="autoTrackBanner" style="display:none;" class="auto-card"></div>
+    <div id="trackPointsList" class="hint" style="margin-bottom:10px;">No track points yet — add at least two, a few minutes apart, or wait for auto-population from an active warning.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn ghost" id="addPointManualBtn">+ Add point manually</button>
+      <button class="btn ghost" id="recalcTrackBtn">Recalculate</button>
+      <button class="btn ghost" id="clearMotionBtn">Clear track</button>
+    </div>
+    <div class="result-card" id="motionResult" style="display:none;">
+      <div class="hint" style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);">STORM MOTION</div>
+      <div class="hint" id="motionQualityNote" style="margin-bottom:6px;"></div>
+      <div class="result-grid">
+        <div class="r"><div class="k">Distance traveled</div><div class="v" id="rDist">—</div></div>
+        <div class="r"><div class="k">Elapsed time</div><div class="v" id="rTime">—</div></div>
+        <div class="r"><div class="k">Speed</div><div class="v" id="rSpeed">—</div></div>
+        <div class="r"><div class="k">Heading (toward)</div><div class="v" id="rHeading">—</div></div>
+        <div class="r"><div class="k">Range to venue</div><div class="v" id="rRange">—</div></div>
+        <div class="r"><div class="k">ETA to venue</div><div class="v" id="rETA">—</div></div>
+      </div>
+    </div>
+
+    <div style="margin:16px 0 10px;border-top:1px solid var(--line);padding-top:12px;">
+      <div class="hint" style="margin-bottom:8px;">🛰 AUTOMATIC — no clicking required if this works. Pulls NOAA's official national MRMS reflectivity mosaic (combines every radar, not just one station) from a service Esri/NOAA built specifically for cross-origin embedding — a real, different category of source than the plain radar image that got CORS-blocked earlier, so there's a genuinely better chance this one works.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn ghost" id="mrmsDetectBtn">🛰 Try one sample</button>
+        <button class="btn ghost" id="mrmsAutoToggleBtn">▶ Start automatic tracking (every 3 min)</button>
+        <span class="calib">TRACK WITHIN <input type="number" id="mrmsRadiusInput" value="50" min="10" max="150" style="width:56px;"> mi of venue</span>
+      </div>
+      <div class="hint" id="mrmsStatus" style="margin-top:8px;"></div>
+      <div id="mrmsViewerWrap" style="display:none;margin-top:10px;max-width:600px;">
+        <canvas id="mrmsCanvas" width="600" height="600" style="width:100%;display:block;border-radius:8px;border:1px solid var(--line);background:#000;"></canvas>
+        <div class="hint" style="margin-top:4px;">This is the actual NOAA MRMS image detection ran against — markers are drawn on the exact pixels analyzed, no separate calibration guess involved.</div>
+      </div>
+      <div id="mrmsCellList" style="margin-top:8px;"></div>
+      <div class="hint" style="margin-top:6px;color:var(--ink-faint);">Radar data: NOAA/NWS MRMS via mapservices.weather.noaa.gov, updated every ~10 min.</div>
+    </div>
+
+    <div style="margin:16px 0 10px;border-top:1px solid var(--line);padding-top:12px;">
+      <button class="btn ghost" id="toggleAdvApiBtn">⚙ Advanced: WeatherSTEM closest-lightning (optional, needs your own API key)</button>
+    </div>
+    <div id="advApiPanel" style="display:none;border:1px solid var(--line-bright);border-radius:8px;padding:14px 16px;">
+      <div class="hint" style="margin-bottom:10px;">⚡ WeatherSTEM "closest lightning" — <b>beta, best-effort.</b> WeatherSTEM's widget API only reports a yes/no "lightning detected within range" signal for the coordinates you give it (not a precise distance/bearing/time), and it's designed to render on one whitelisted domain rather than be queried directly. <b>Yes, hosting matters:</b> WeatherSTEM keys are restricted to a list of hostnames/IPs you approve when you create the key, checked in-browser against the page's own address — a file opened straight off your computer (a <code>file://</code> address) has no hostname at all, so it will not pass, no matter how correct the key is. Host this file somewhere with a real address (even a plain <code>http://&lt;your-ip&gt;</code> or a static site) and add that exact host to the key's allowed list, or this panel will just sit empty. Once it's hosted right, this panel auto-moves the widget to whichever venue you select and re-checks it every few minutes — no need to click anything after that. Your key is only kept in this browser's local storage — it's never written into the file itself.</div>
+      <div class="form-grid">
+        <fieldset>
+          <legend>WEATHERSTEM API KEY</legend>
+          <label class="field"><span>API V2 key</span><input type="text" id="wsApiKey" placeholder="paste your WeatherSTEM API V2 key"></label>
+          <label class="field"><span>Search radius</span>
+            <select id="wsDistance">
+              <option value="10">10 mi</option>
+              <option value="25">25 mi</option>
+              <option value="50" selected>50 mi</option>
+              <option value="100">100 mi</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>ACTIONS</legend>
+          <label class="field" style="flex-direction:row;align-items:center;gap:6px;">
+            <input type="checkbox" id="wsAutoMonitor" checked style="width:auto;">
+            <span>Auto-move to selected venue &amp; monitor every 3 min</span>
+          </label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+            <button class="btn ghost" id="wsSaveBtn">Save key</button>
+            <button class="btn" id="wsCheckBtn">Check closest lightning for this venue</button>
+          </div>
+          <div class="hint" id="wsStatus" style="margin-top:8px;"></div>
+          <div id="wsWidgetHost" style="margin-top:8px;min-height:1px;"></div>
+        </fieldset>
+      </div>
+    </div>
+  </section>
+
+  <!-- STORM MODE -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Storm mode</h2>
+      <span class="hint">Analyst override, live NWS auto-read, and a manual checklist — whichever is set takes priority in that order</span>
+    </div>
+
+    <div class="mode-summary" id="modeSummaryStrip">
+      <span class="mode-summary-label">CURRENT CALL</span>
+      <span class="mode-summary-badge" id="modeSummaryBadge">Not set</span>
+      <span class="mode-summary-src" id="modeSummarySrc">Set an override, wait for an auto-read, or run the checklist below.</span>
+    </div>
+
+    <div class="tab-row">
+      <button class="tab-btn active" data-tab="override">🎯 Analyst Override</button>
+      <button class="tab-btn" data-tab="auto">📡 NWS Auto-Read</button>
+      <button class="tab-btn" data-tab="checklist">☑ Manual Checklist</button>
+    </div>
+
+    <div class="tab-panel" data-panel="override">
+      <div class="form-grid">
+        <fieldset>
+          <legend>STORM TYPE</legend>
+          <label class="field"><span>Type</span>
+            <select id="overrideType">
+              <option value="">— select —</option>
+              <option value="Supercell">Supercell</option>
+              <option value="Squall line / QLCS — bow echo">Squall line / QLCS — bow echo</option>
+              <option value="Squall line / linear MCS">Squall line / linear MCS</option>
+              <option value="Multicell cluster">Multicell cluster</option>
+              <option value="Single-cell / airmass storm">Single-cell / airmass storm</option>
+              <option value="Tropical / landfalling system">Tropical / landfalling system</option>
+              <option value="Other — see notes">Other — see notes</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>NOTES (OPTIONAL)</legend>
+          <label class="field"><span>What makes this a one-off</span>
+            <input type="text" id="overrideNotes" placeholder="e.g. training cells over the venue, outflow-dominant, splitting cell..."></label>
+        </fieldset>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;">
+        <button class="btn" id="setOverrideBtn">Set storm mode</button>
+        <button class="btn ghost" id="clearOverrideBtn">Clear</button>
+      </div>
+      <div class="mode-result" id="overrideResult" style="display:none;">
+        <div class="mode-badge" id="overrideBadge">—</div>
+        <div class="mode-text" id="overrideText">—</div>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="auto" style="display:none;">
+      <div class="hint" style="margin-bottom:10px;">Reads the actual text and structured fields of active NWS products for this venue — not an image analysis.</div>
+      <div id="autoModeResult">
+        <div class="empty-state">Select a venue to check active NWS products for storm-mode language.</div>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="checklist" style="display:none;">
+      <div class="hint" style="margin-bottom:10px;">For structure a warning hasn't described yet, or reflectivity/velocity you're reading directly off radar — this app can't see rotation itself: the radar loop above is reflectivity color only, with no CORS access for pixel analysis, and no velocity data at all.</div>
+      <div class="check-grid" id="modeChecks">
+        <div class="check-item"><input type="checkbox" id="c1" value="hook"><label for="c1"><b>Hook echo</b> on reflectivity</label></div>
+        <div class="check-item"><input type="checkbox" id="c2" value="couplet"><label for="c2"><b>Velocity couplet</b> (rotation) on base velocity</label></div>
+        <div class="check-item"><input type="checkbox" id="c3" value="isolated"><label for="c3"><b>Isolated / discrete cell</b>, not part of a line</label></div>
+        <div class="check-item"><input type="checkbox" id="c4" value="bow"><label for="c4"><b>Bowing segment</b> in a line of storms</label></div>
+        <div class="check-item"><input type="checkbox" id="c5" value="line"><label for="c5"><b>Continuous line</b> of storms &gt;50 mi long</label></div>
+        <div class="check-item"><input type="checkbox" id="c6" value="rfd"><label for="c6"><b>Rear-flank downdraft</b> clear slot visible</label></div>
+        <div class="check-item"><input type="checkbox" id="c7" value="multicell"><label for="c7"><b>Cluster of cells</b>, new growth on one flank</label></div>
+        <div class="check-item"><input type="checkbox" id="c8" value="anvil"><label for="c8"><b>Anvil extends well ahead</b> of the core (overshooting top / forward anvil)</label></div>
+        <div class="check-item"><input type="checkbox" id="c9" value="cgrate"><label for="c9"><b>CG lightning rate rising fast</b> (&gt;1/min and climbing)</label></div>
+        <div class="check-item"><input type="checkbox" id="c10" value="pos"><label for="c10"><b>Predominantly positive CG strokes</b> noted in anvil region</label></div>
+      </div>
+      <div style="margin-top:14px;"><button class="btn" id="classifyBtn">Classify storm mode</button></div>
+      <div class="mode-result" id="modeResult" style="display:none;">
+        <div class="mode-badge" id="modeBadge">—</div>
+        <div class="mode-text" id="modeText">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VENUE / CROWD FACTORS + DECISION -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Venue conditions &amp; lightning-delay lead time</h2>
+      <span class="hint">These factors change how much warning time is actually needed to clear the venue</span>
+    </div>
+
+    <div class="hint" style="margin-bottom:8px;">Event type sets sensible defaults across every factor below in one click — fine-tune any of them afterward.</div>
+    <div class="hint" id="venueMemoryNote" style="margin-bottom:8px;color:var(--electric);"></div>
+    <div class="pill-row" id="eventTypeRow">
+      <button type="button" class="pill-btn active" data-preset="standard">Standard event</button>
+      <button type="button" class="pill-btn" data-preset="rivalryGame">Rivalry / highly anticipated</button>
+      <button type="button" class="pill-btn" data-preset="homecoming">Homecoming</button>
+      <button type="button" class="pill-btn" data-preset="familyDay">Family day</button>
+      <button type="button" class="pill-btn" data-preset="studentNight">Student night</button>
+      <button type="button" class="pill-btn" data-preset="alumniDay">Alumni day</button>
+      <button type="button" class="pill-btn" data-preset="schoolFieldTrip">School field trip</button>
+      <button type="button" class="pill-btn" data-preset="youthTournament">Youth tournament</button>
+    </div>
+
+    <div class="form-grid form-grid-4">
+      <fieldset>
+        <legend>CROWD &amp; SERVICE</legend>
+        <label class="field"><span>Alcohol currently being served</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="alcohol" data-val="0">No</div>
+            <div class="toggle-opt" data-group="alcohol" data-val="1">Yes</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Crowd density</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="crowd" data-val="0">Sparse</div>
+            <div class="toggle-opt" data-group="crowd" data-val="1">Moderate</div>
+            <div class="toggle-opt" data-group="crowd" data-val="2">Packed / sellout</div>
+          </div>
+        </label>
+        <div class="hint" id="crowdEstimate" style="margin-top:8px;">Select a venue and a crowd level to estimate attendance</div>
+        <div class="cap-bar-track" id="capBarTrack" style="display:none;"><div class="cap-bar-fill" id="capBarFill"></div></div>
+      </fieldset>
+      <fieldset>
+        <legend>MOBILITY &amp; EGRESS</legend>
+        <label class="field"><span>Attendees needing mobility assistance</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="disabled" data-val="0">Few / none</div>
+            <div class="toggle-opt" data-group="disabled" data-val="1">Some</div>
+            <div class="toggle-opt" data-group="disabled" data-val="2">Many (ADA-heavy section, wheelchair section full)</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Covered shelter / egress capacity</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="egress" data-val="0">Ample, close shelter</div>
+            <div class="toggle-opt" data-group="egress" data-val="1">Limited, distant, or single-file chokepoints</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Walk time to nearest permanent shelter</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="shelterDist" data-val="0">&lt; 2 min</div>
+            <div class="toggle-opt" data-group="shelterDist" data-val="1">2–5 min</div>
+            <div class="toggle-opt" data-group="shelterDist" data-val="2">&gt; 5 min</div>
+          </div>
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>TIMING &amp; VISIBILITY</legend>
+        <label class="field"><span>Light conditions</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="lighting" data-val="0">Daylight</div>
+            <div class="toggle-opt" data-group="lighting" data-val="1">Dusk / dawn</div>
+            <div class="toggle-opt" data-group="lighting" data-val="2">Night</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Attendee familiarity with venue</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="familiarity" data-val="0">Regular season crowd</div>
+            <div class="toggle-opt" data-group="familiarity" data-val="1">One-off / touring event</div>
+          </div>
+        </label>
+        <div class="hint" style="margin-top:10px;">Night and unfamiliar crowds move slower to shelter — both add lead time below, same as crowd size and mobility do.</div>
+      </fieldset>
+      <fieldset>
+        <legend>EVENT DEMOGRAPHICS</legend>
+        <label class="field"><span>Age distribution</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="age" data-val="0">Adult-heavy</div>
+            <div class="toggle-opt active" data-group="age" data-val="1">Mixed</div>
+            <div class="toggle-opt" data-group="age" data-val="2">Family-heavy</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Home vs. visiting fan ratio</span>
+          <div class="toggle-row">
+            <div class="toggle-opt active" data-group="fanratio" data-val="0">Mostly home</div>
+            <div class="toggle-opt" data-group="fanratio" data-val="1">Mixed</div>
+            <div class="toggle-opt" data-group="fanratio" data-val="2">Mostly visiting</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Language / ESL population</span>
+          <div class="toggle-row">
+            <div class="toggle-opt active" data-group="language" data-val="0">Low</div>
+            <div class="toggle-opt" data-group="language" data-val="1">Moderate</div>
+            <div class="toggle-opt" data-group="language" data-val="2">High</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Alert reach</span>
+          <div class="toggle-row">
+            <div class="toggle-opt active" data-group="alertreach" data-val="0">High digital</div>
+            <div class="toggle-opt" data-group="alertreach" data-val="1">Mixed</div>
+            <div class="toggle-opt" data-group="alertreach" data-val="2">PA-dependent</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Seating structure</span>
+          <div class="toggle-row">
+            <div class="toggle-opt" data-group="seating" data-val="0">GA / lawn</div>
+            <div class="toggle-opt active" data-group="seating" data-val="1">Mixed</div>
+            <div class="toggle-opt" data-group="seating" data-val="2">Fixed-seat</div>
+          </div>
+        </label>
+        <label class="field" style="margin-top:12px;"><span>Tailgate / exterior population</span>
+          <div class="toggle-row">
+            <div class="toggle-opt active" data-group="tailgate" data-val="0">None / minimal</div>
+            <div class="toggle-opt" data-group="tailgate" data-val="1">Moderate</div>
+            <div class="toggle-opt" data-group="tailgate" data-val="2">Large</div>
+          </div>
+        </label>
+        <div class="hint" id="tailgateAutoNote" style="margin-top:6px;"></div>
+        <div class="demo-checkrow"><input type="checkbox" id="demoAdaptive"><label for="demoAdaptive">Adaptive / sensory-accommodation attendees present</label></div>
+        <div class="demo-checkrow"><input type="checkbox" id="demoMinors"><label for="demoMinors">Unaccompanied minors / school groups present</label></div>
+      </fieldset>
+    </div>
+
+    <div class="decision safe" id="decisionCard">
+      <div class="decision-head">
+        <div class="decision-dot" style="background:var(--safe);" id="decisionDot"></div>
+        <div class="decision-title" id="decisionTitle">Set venue factors to see a recommendation</div>
+      </div>
+      <div class="decision-body" id="decisionBody">
+        Baseline uses the NWS 30-30 rule (suspend activity once thunder follows lightning by 30 seconds or less; the flash-to-bang gap is roughly 1 mile per 5 seconds) as the floor, then adds lead time for crowd, alcohol, and mobility factors. Calculate storm motion above to compare required lead time against actual storm ETA.
+      </div>
+      <div class="decision-nums">
+        <div class="n"><div class="k">Base lead time (30-30 floor)</div><div class="v" id="baseLead">15 min</div></div>
+        <div class="n"><div class="k">Venue-adjusted lead time</div><div class="v" id="adjLead">15 min</div></div>
+        <div class="n"><div class="k">Storm ETA (if calculated)</div><div class="v" id="etaLead">—</div></div>
+        <div class="n"><div class="k">Margin</div><div class="v" id="marginLead">—</div></div>
+      </div>
+      <div class="breakdown" id="leadBreakdown"></div>
+    </div>
+
+    <div class="auto-card" id="shelterGuidance" style="margin-top:14px; display:none;">
+      <div class="auto-head"><span class="mode-badge" style="background:var(--advisory);color:#fff;" id="shelterHeadcountBadge">—</span></div>
+      <div class="mode-text" id="shelterGuidanceText"></div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <div class="block-head" style="margin-bottom:10px;">
+        <h2 style="font-size:13.5px;">Suggested alert language</h2>
+        <span class="hint">Auto-generated from the demographics above — copy into your PA / app push announcement</span>
+      </div>
+      <div id="alertCopyBox"></div>
+    </div>
+  </section>
+
+  <!-- DECISION LOG -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Decision log</h2>
+      <span class="hint">Saves a timestamped snapshot of everything above — storm data, mode, venue factors, and the final call — so there's a record after the storm passes</span>
+    </div>
+    <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+      <button class="btn" id="saveLogBtn">📋 Save current decision to log</button>
+      <button class="btn ghost" id="printSummaryBtn">🖨 Export incident summary</button>
+      <button class="btn ghost" id="clearLogBtn">Clear log</button>
+    </div>
+    <div id="logList"><div class="empty-state">No saved decisions yet.</div></div>
+  </section>
+
+  <div id="printSummary" style="display:none;"></div>
+
+  <footer>
+    Weather data &amp; alerts: National Weather Service (api.weather.gov), public domain. Radar imagery: NWS RIDGE, radar.weather.gov. Coordinates are approximate venue centroids. Storm-mode classification and lead-time figures are decision-support heuristics for trained personnel — they do not replace official NWS warnings, a certified meteorologist's judgment, or your venue's written severe-weather action plan. Always follow the stricter of this tool's guidance and official NWS direction.
+  </footer>
+
+</div>
+
+<script>
+/* ---------------- storage shim ----------------
+   window.storage isn't a standard browser API — it's only present if this page
+   happens to be running inside a platform that injects it. Opened as a plain
+   HTML file in a normal browser, window.storage is undefined, which would
+   silently break every persistence feature here: the decision log, saved
+   venues, saved API keys, and the theme/per-venue-memory below. This shim uses
+   window.storage when it exists and transparently falls back to localStorage
+   otherwise, so saving actually works either way. Everything below calls
+   appStorage instead of window.storage directly. */
+const appStorage = {
+  async get(key){
+    if(window.storage && typeof window.storage.get === 'function') return window.storage.get(key, false);
+    return { value: localStorage.getItem('lsd:'+key) };
+  },
+  async set(key, value){
+    if(window.storage && typeof window.storage.set === 'function') return window.storage.set(key, value, false);
+    localStorage.setItem('lsd:'+key, value);
+  },
+  async list(prefix){
+    if(window.storage && typeof window.storage.list === 'function') return window.storage.list(prefix, false);
+    const keys = [];
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf('lsd:'+prefix) === 0) keys.push(k.slice(4));
+    }
+    return { keys };
+  },
+  async delete(key){
+    if(window.storage && typeof window.storage.delete === 'function') return window.storage.delete(key, false);
+    localStorage.removeItem('lsd:'+key);
+  }
+};
+
+/* ---------------- daylight / dark theme ---------------- */
+function applyTheme(theme){
+  document.documentElement.dataset.theme = theme;
+  document.getElementById('themeToggleBtn').textContent = theme === 'light' ? '🌙 Dark mode' : '☀ Daylight mode';
+}
+document.getElementById('themeToggleBtn').addEventListener('click', async ()=>{
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try{ await appStorage.set('ui_theme', next); }catch(e){ /* best effort */ }
+});
+(async function initTheme(){
+  try{
+    const r = await appStorage.get('ui_theme');
+    if(r && r.value === 'light') applyTheme('light');
+  }catch(e){ /* default (dark) stays */ }
+})();
+
+/* ---------------- clock ---------------- */
+function tickClock(){
+  const now = new Date();
+  document.getElementById('clockTime').textContent = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('clockDate').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+}
+tickClock(); setInterval(tickClock,1000);
+
+let selectedStadium = null;
+
+/* ---------------- custom venues (any outdoor location) ---------------- */
+let customVenues = [];
+
+async function loadCustomVenues(){
+  try{
+    const result = await appStorage.get('custom_venues');
+    customVenues = result && result.value ? JSON.parse(result.value) : [];
+  }catch(e){
+    customVenues = [];
+  }
+  renderCustomVenueGrid();
+}
+
+async function saveCustomVenuesToStorage(){
+  try{
+    await appStorage.set('custom_venues', JSON.stringify(customVenues));
+  }catch(e){
+    console.error('Could not save custom venues', e);
+  }
+}
+
+function renderCustomVenueGrid(){
+  const cvGrid = document.getElementById('customVenueGrid');
+  const empty = document.getElementById('customVenueEmpty');
+  cvGrid.innerHTML = "";
+  if(customVenues.length === 0){
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  customVenues.forEach((s, idx)=>{
+    const card = document.createElement('div');
+    card.className = 'stadium-card';
+    const capLabel = s.sport === 'golf' ? `Approx. gallery: ${s.capacity.toLocaleString()}` : `Capacity: ${s.capacity.toLocaleString()}`;
+    const sportIcon = {football:'🏈',baseball:'⚾',softball:'🥎',soccer:'⚽',golf:'⛳'}[s.sport] || '';
+    card.innerHTML = `<div class="stadium-name">${sportIcon} ${s.name}</div>
+      <div class="stadium-meta">${s.team || '—'}</div>
+      <div class="stadium-meta">${s.city}</div>
+      <div class="stadium-meta">${capLabel}</div>
+      <span class="tag">CUSTOM</span>
+      <button class="log-del" style="margin-top:8px;" data-idx="${idx}">Remove</button>`;
+    card.querySelector('.log-del').addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      customVenues.splice(idx,1);
+      saveCustomVenuesToStorage();
+      renderCustomVenueGrid();
+    });
+    card.addEventListener('click', (ev)=>{
+      if(ev.target.classList.contains('log-del')) return;
+      document.querySelectorAll('.stadium-card').forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectStadium(s, card);
+    });
+    cvGrid.appendChild(card);
+  });
+}
+
+document.getElementById('toggleAddVenueBtn').addEventListener('click', ()=>{
+  const form = document.getElementById('addVenueForm');
+  const btn = document.getElementById('toggleAddVenueBtn');
+  const nowHidden = form.style.display !== 'none';
+  form.style.display = nowHidden ? 'none' : 'block';
+  btn.textContent = nowHidden ? 'Show search' : 'Hide search';
+});
+document.getElementById('cvCancelBtn').addEventListener('click', ()=>{
+  ['cvName','cvTeam','cvCapacity','cvAddress','cvLat','cvLon'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cvGeocodeStatus').textContent = '';
+  document.getElementById('cvCapStatus').textContent = '';
+  document.getElementById('cvResults').innerHTML = '';
+});
+
+// Free, no-key capacity lookup: search Wikidata for a matching entity, then read
+// its "capacity" (P1083) claim if present. Works well for known stadiums/venues;
+// silently leaves the field for manual entry when there's no match.
+async function lookupCapacityFromWikidata(name){
+  const capStatus = document.getElementById('cvCapStatus');
+  capStatus.textContent = 'Checking Wikidata for capacity…';
+  try{
+    const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(name)}&language=en&format=json&origin=*&limit=1`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+    const entity = searchData.search && searchData.search[0];
+    if(!entity){ capStatus.textContent = 'No Wikidata match — enter capacity manually.'; return; }
+
+    const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${entity.id}&property=P1083&format=json&origin=*`;
+    const claimsRes = await fetch(claimsUrl);
+    const claimsData = await claimsRes.json();
+    const claims = claimsData.claims && claimsData.claims.P1083;
+    const amount = claims && claims[0] && claims[0].mainsnak && claims[0].mainsnak.datavalue && claims[0].mainsnak.datavalue.value && claims[0].mainsnak.datavalue.value.amount;
+    if(amount){
+      const cap = Math.round(Math.abs(parseFloat(amount)));
+      document.getElementById('cvCapacity').value = cap;
+      capStatus.textContent = `Capacity auto-filled from Wikidata (${entity.label || name}): ${cap.toLocaleString()} — verify before relying on it.`;
+    } else {
+      capStatus.textContent = `Found "${entity.label || name}" on Wikidata, but no capacity listed — enter it manually.`;
+    }
+  }catch(e){
+    capStatus.textContent = 'Wikidata lookup failed — enter capacity manually.';
+  }
+}
+
+document.getElementById('cvGeocodeBtn').addEventListener('click', async ()=>{
+  const addr = document.getElementById('cvAddress').value.trim();
+  const status = document.getElementById('cvGeocodeStatus');
+  const resultsEl = document.getElementById('cvResults');
+  if(!addr){ status.textContent = "Type a venue name or address first."; return; }
+  status.textContent = "Searching…";
+  resultsEl.innerHTML = '';
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&q=${encodeURIComponent(addr)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if(!data || data.length === 0){
+      status.textContent = "No matches — try a broader search, or enter lat/lon manually below.";
+      return;
+    }
+    status.textContent = `${data.length} match${data.length>1?'es':''} — pick the right one:`;
+    resultsEl.innerHTML = data.map((r,i)=>`
+      <div class="cv-result" data-idx="${i}">
+        <div class="rname">${(r.name || r.display_name.split(',')[0])}</div>
+        <div class="raddr">${r.display_name}</div>
+      </div>`).join('');
+    resultsEl.querySelectorAll('.cv-result').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        resultsEl.querySelectorAll('.cv-result').forEach(x=>x.classList.remove('picked'));
+        el.classList.add('picked');
+        const r = data[parseInt(el.dataset.idx,10)];
+        document.getElementById('cvLat').value = parseFloat(r.lat).toFixed(5);
+        document.getElementById('cvLon').value = parseFloat(r.lon).toFixed(5);
+        const pickedName = r.name || r.display_name.split(',')[0];
+        if(!document.getElementById('cvName').value){
+          document.getElementById('cvName').value = pickedName;
+        }
+        lookupCapacityFromWikidata(pickedName);
+      });
+    });
+  }catch(e){
+    status.textContent = "Search failed — enter lat/lon manually below.";
+  }
+});
+
+document.getElementById('cvSaveBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('cvName').value.trim();
+  const team = document.getElementById('cvTeam').value.trim();
+  const sport = document.getElementById('cvSport').value;
+  const capacity = parseInt(document.getElementById('cvCapacity').value, 10);
+  const lat = parseFloat(document.getElementById('cvLat').value);
+  const lon = parseFloat(document.getElementById('cvLon').value);
+  const address = document.getElementById('cvAddress').value.trim();
+
+  if(!name || isNaN(lat) || isNaN(lon) || isNaN(capacity)){
+    alert("Need at least a name, capacity, and coordinates (search and pick a result, or enter lat/lon manually).");
+    return;
+  }
+
+  customVenues.push({
+    name, team: team || 'Custom venue', sport, capacity, lat, lon,
+    city: address || `${lat.toFixed(3)}, ${lon.toFixed(3)}`,
+    level: 'custom', custom: true
+  });
+  saveCustomVenuesToStorage();
+  renderCustomVenueGrid();
+
+  const newVenue = customVenues[customVenues.length-1];
+  const newCard = Array.from(document.querySelectorAll('#customVenueGrid .stadium-card')).pop();
+  if(newCard) selectStadium(newVenue, newCard);
+
+  ['cvName','cvTeam','cvCapacity','cvAddress','cvLat','cvLon'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cvGeocodeStatus').textContent = '';
+  document.getElementById('cvCapStatus').textContent = '';
+  document.getElementById('cvResults').innerHTML = '';
+});
+
+loadCustomVenues();
+
+/* ---------------- decision log ---------------- */
+function gatherSnapshot(){
+  const text = id => { const el = document.getElementById(id); return el ? el.textContent.trim() : ''; };
+
+  let modeSummary = '—';
+  if(document.getElementById('overrideResult').style.display !== 'none'){
+    modeSummary = `Analyst override: ${text('overrideBadge')} — ${text('overrideText')}`;
+  } else if(document.getElementById('modeResult').style.display !== 'none'){
+    modeSummary = `Checklist: ${text('modeBadge')} — ${text('modeText')}`;
+  } else {
+    modeSummary = `Auto-read from NWS: ${document.getElementById('autoModeResult').textContent.trim().slice(0,300)}`;
+  }
+
+  const motionShown = document.getElementById('motionResult').style.display !== 'none';
+
+  return {
+    time: new Date().toISOString(),
+    venue: selectedStadium ? `${selectedStadium.name} (${selectedStadium.city})` : 'No venue selected',
+    stormSpeed: motionShown ? text('rSpeed') : '—',
+    stormHeading: motionShown ? text('rHeading') : '—',
+    stormRange: motionShown ? text('rRange') : '—',
+    stormEta: motionShown ? text('rETA') : '—',
+    stormMode: modeSummary,
+    crowdEstimate: text('crowdEstimate'),
+    alcohol: venueState.alcohol ? 'Yes' : 'No',
+    crowdLevel: ['Sparse','Moderate','Packed/sellout'][venueState.crowd] || '—',
+    mobility: ['Few/none','Some','Many'][venueState.disabled] || '—',
+    egress: venueState.egress ? 'Limited/single-file' : 'Ample',
+    baseLead: text('baseLead'),
+    adjLead: text('adjLead'),
+    margin: text('marginLead'),
+    decision: text('decisionTitle'),
+    decisionDetail: text('decisionBody')
+  };
+}
+
+async function loadLogList(){
+  const listEl = document.getElementById('logList');
+  try{
+    const res = await appStorage.list('decision_log:');
+    const keys = (res && res.keys) ? res.keys : [];
+    if(keys.length === 0){
+      listEl.innerHTML = `<div class="empty-state">No saved decisions yet.</div>`;
+      return;
+    }
+    const entries = [];
+    for(const k of keys.sort().reverse()){
+      try{
+        const r = await appStorage.get(k);
+        if(r && r.value) entries.push({key:k, data:JSON.parse(r.value)});
+      }catch(e){ /* skip unreadable entry */ }
+    }
+    listEl.innerHTML = entries.map(e => `
+      <div class="log-entry">
+        <div class="log-entry-head">
+          <b>${e.data.venue}</b>
+          <span class="ts">${new Date(e.data.time).toLocaleString()}</span>
+          <button class="log-del" data-key="${e.key}">Delete</button>
+        </div>
+        <div class="log-entry-body">
+          Storm: ${e.data.stormSpeed} @ ${e.data.stormHeading}, ETA ${e.data.stormEta} · ${e.data.crowdEstimate}<br>
+          Factors: alcohol ${e.data.alcohol}, crowd ${e.data.crowdLevel}, mobility ${e.data.mobility}, egress ${e.data.egress}<br>
+          Lead time: base ${e.data.baseLead} → adjusted ${e.data.adjLead} (margin ${e.data.margin})<br>
+          <b>${e.data.decision}</b>
+        </div>
+      </div>`).join('');
+    listEl.querySelectorAll('.log-del').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        try{ await appStorage.delete(btn.dataset.key); }catch(e){}
+        loadLogList();
+      });
+    });
+  }catch(e){
+    listEl.innerHTML = `<div class="empty-state">Couldn't load the decision log right now.</div>`;
+  }
+}
+loadLogList();
+
+document.getElementById('saveLogBtn').addEventListener('click', async ()=>{
+  if(!selectedStadium){ alert("Select a venue first."); return; }
+  const snap = gatherSnapshot();
+  const key = `decision_log:${Date.now()}`;
+  try{
+    await appStorage.set(key, JSON.stringify(snap));
+    loadLogList();
+  }catch(e){
+    alert("Couldn't save to the log right now.");
+  }
+});
+
+document.getElementById('clearLogBtn').addEventListener('click', async ()=>{
+  if(!confirm("Clear the entire decision log? This can't be undone.")) return;
+  try{
+    const res = await appStorage.list('decision_log:');
+    const keys = (res && res.keys) ? res.keys : [];
+    for(const k of keys){ try{ await appStorage.delete(k); }catch(e){} }
+    loadLogList();
+  }catch(e){}
+});
+
+document.getElementById('printSummaryBtn').addEventListener('click', ()=>{
+  if(!selectedStadium){ alert("Select a venue first."); return; }
+  const snap = gatherSnapshot();
+  const rows = [
+    ['Venue', snap.venue],
+    ['Generated', new Date(snap.time).toLocaleString()],
+    ['Storm speed / heading', `${snap.stormSpeed} @ ${snap.stormHeading}`],
+    ['Storm range / ETA', `${snap.stormRange} / ${snap.stormEta}`],
+    ['Storm mode', snap.stormMode],
+    ['Crowd estimate', snap.crowdEstimate],
+    ['Alcohol served', snap.alcohol],
+    ['Crowd level', snap.crowdLevel],
+    ['Mobility-assisted attendees', snap.mobility],
+    ['Egress capacity', snap.egress],
+    ['Base lead time', snap.baseLead],
+    ['Venue-adjusted lead time', snap.adjLead],
+    ['Margin vs. storm ETA', snap.margin],
+    ['Decision', snap.decision],
+    ['Decision detail', snap.decisionDetail]
+  ];
+  document.getElementById('printSummary').innerHTML = `
+    <h1>Stadium Storm Ops — Incident Summary</h1>
+    <table>${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
+    <p style="font-size:11px;color:#666;">Decision-support summary only — not a substitute for official NWS warnings or the venue's emergency action plan.</p>`;
+  window.print();
+});
+
+// Football at a stadium this size almost always means outdoor tailgating on game
+// day (Tiger Stadium, any SEC/Power-conference venue, etc.) — capacity is a
+// reasonable stand-in for "big program" without hardcoding a team list, and it
+// still works for venues found through the nationwide search, not just the
+// starting LA/KY set. Other sports default to none, since tailgating isn't
+// nearly as universal there.
+function estimateDefaultTailgate(s){
+  if(!s || s.sport !== 'football') return 0;
+  const cap = s.capacity;
+  if(cap && cap >= 55000) return 2;   // SEC/Power-conference scale — assume a full tailgate scene
+  if(!cap || cap >= 20000) return 1;  // unknown capacity, or still a sizable program — assume at least moderate
+  return 0;
+}
+
+function tailgateAutoNoteText(s, val){
+  if(!s || s.sport !== 'football' || val === 0) return "";
+  if(val === 2) return "Auto-set to Large — football at this capacity (SEC/Power-conference scale) almost always means a full outside tailgate scene on game day. Adjust if this specific event won't have one.";
+  return "Auto-set to Moderate — football games typically draw some outdoor tailgating. Adjust if this specific event won't have one.";
+}
+
+/* ---------------- per-venue memory (remembers your last demographics/event-type for this venue) ---------------- */
+function venueSettingsKey(s){
+  return `venue_settings:${(s.name+'|'+s.city).toLowerCase()}`;
+}
+
+async function saveVenueSettings(s){
+  if(!s) return;
+  const activePreset = document.querySelector('#eventTypeRow .pill-btn.active');
+  const payload = { venueState: {...venueState}, preset: activePreset ? activePreset.dataset.preset : 'standard' };
+  try{ await appStorage.set(venueSettingsKey(s), JSON.stringify(payload)); }catch(e){ /* best effort */ }
+}
+
+// Called after selectStadium() has already applied fresh defaults (including the
+// tailgate auto-estimate) — if this venue has saved settings, they take over from
+// there. Guards against a fast venue switch landing settings on the wrong venue.
+async function applySavedVenueSettings(s){
+  let saved = null;
+  try{
+    const r = await appStorage.get(venueSettingsKey(s));
+    if(r && r.value) saved = JSON.parse(r.value);
+  }catch(e){ /* none saved, or read failed — keep defaults */ }
+  if(!saved || selectedStadium !== s) return;
+  Object.assign(venueState, saved.venueState || {});
+  document.getElementById('demoAdaptive').checked = !!venueState.adaptive;
+  document.getElementById('demoMinors').checked = !!venueState.minors;
+  document.querySelectorAll('#eventTypeRow .pill-btn').forEach(b=>b.classList.toggle('active', b.dataset.preset === (saved.preset || 'standard')));
+  syncAllToggleUI();
+  document.getElementById('tailgateAutoNote').textContent = '';
+  document.getElementById('venueMemoryNote').textContent = `Restored your last settings for ${s.name}.`;
+  updateDecision();
+}
+
+function selectStadium(s, cardEl){
+  selectedStadium = s;
+  document.querySelectorAll('.stadium-card').forEach(c=>c.classList.remove('selected'));
+  cardEl.classList.add('selected');
+  document.getElementById('condHint').textContent = `${s.name} — ${s.city}`;
+  document.getElementById('radarHint').textContent = `${s.name}`;
+  document.getElementById('overrideType').value = '';
+  document.getElementById('overrideNotes').value = '';
+  document.getElementById('overrideResult').style.display = 'none';
+  updateModeSummary();
+  const defaultTailgate = estimateDefaultTailgate(s);
+  venueState = { alcohol:0, crowd:0, disabled:0, egress:0, shelterDist:0, lighting:0, familiarity:0, crowdSet:false,
+    age:1, fanratio:0, language:0, alertreach:0, seating:1, tailgate:defaultTailgate, adaptive:false, minors:false };
+  document.querySelectorAll('.toggle-opt').forEach(o=>o.classList.remove('active'));
+  syncAllToggleUI();
+  document.getElementById('demoAdaptive').checked = false;
+  document.getElementById('demoMinors').checked = false;
+  document.getElementById('tailgateAutoNote').textContent = tailgateAutoNoteText(s, defaultTailgate);
+  document.querySelectorAll('#eventTypeRow .pill-btn').forEach(b=>b.classList.toggle('active', b.dataset.preset==='standard'));
+  document.getElementById('venueMemoryNote').textContent = '';
+  renderAlertCopy();
+  applySavedVenueSettings(s); // async — overlays any settings saved for this venue on top of the defaults just applied above
+  trackPoints = [];
+  trackArmed = false;
+  lastStormEtaMinutes = null;
+  document.getElementById('motionResult').style.display = 'none';
+  document.getElementById('autoTrackBanner').style.display = 'none';
+  if(typeof mrmsAutoInterval !== 'undefined' && mrmsAutoInterval){ clearInterval(mrmsAutoInterval); mrmsAutoInterval = null; }
+  const adBtn = document.getElementById('mrmsAutoToggleBtn');
+  if(adBtn){ adBtn.textContent = '▶ Start automatic tracking (every 3 min)'; adBtn.classList.remove('active'); }
+  const adStatus = document.getElementById('mrmsStatus');
+  if(adStatus) adStatus.textContent = '';
+  mrmsCellTracks = [];
+  mrmsSampleCount = 0;
+  const mrmsViewer = document.getElementById('mrmsViewerWrap');
+  if(mrmsViewer) mrmsViewer.style.display = 'none';
+  const mrmsListEl = document.getElementById('mrmsCellList');
+  if(mrmsListEl) mrmsListEl.innerHTML = '';
+  renderTrackPointsUI();
+  showVenueOnMap(s);
+  loadConditions(s);
+  updateDecision();
+  const wsMonitorBox = document.getElementById('wsAutoMonitor');
+  if(wsMonitorBox && wsMonitorBox.checked) refreshWeatherstemWidget({silent:true});
+}
+
+/* ---------------- NWS fetch ---------------- */
+async function loadConditions(s){
+  const condBody = document.getElementById('condBody');
+  const radarBody = document.getElementById('radarBody');
+  condBody.innerHTML = `<div class="empty-state">Loading NWS point data for ${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}…</div>`;
+  radarBody.innerHTML = `<div class="empty-state">Loading nearest radar station…</div>`;
+  document.getElementById('autoModeResult').innerHTML = `<div class="empty-state">Checking active NWS products…</div>`;
+
+  try{
+    const ptRes = await fetch(`https://api.weather.gov/points/${s.lat},${s.lon}`);
+    if(!ptRes.ok) throw new Error("points lookup failed");
+    const pt = await ptRes.json();
+    const radarStation = pt.properties.radarStation;
+    const stationsUrl = pt.properties.observationStations;
+    const forecastUrl = pt.properties.forecast;
+    const forecastHourlyUrl = pt.properties.forecastHourly;
+    const office = pt.properties.cwa;
+
+    renderRadar(radarStation, s);
+    loadOutlook(forecastHourlyUrl);
+
+    // nearest observation station + latest obs
+    let obsHtml = "";
+    let condCells = [];
+    try{
+      const stRes = await fetch(stationsUrl);
+      const stData = await stRes.json();
+      const firstStation = stData.features && stData.features[0];
+      if(firstStation){
+        const stationId = firstStation.properties.stationIdentifier;
+        const obsRes = await fetch(`https://api.weather.gov/stations/${stationId}/observations/latest`);
+        if(obsRes.ok){
+          const obs = await obsRes.json();
+          const p = obs.properties;
+          const toF = c => (c===null||c===undefined) ? null : (c*9/5+32);
+          const temp = toF(p.temperature && p.temperature.value);
+          const wind = p.windSpeed && p.windSpeed.value; // km/h
+          const windMph = wind!==null && wind!==undefined ? (wind*0.621371) : null;
+          const gust = p.windGust && p.windGust.value;
+          const gustMph = gust!==null && gust!==undefined ? (gust*0.621371) : null;
+          const dir = p.windDirection && p.windDirection.value;
+          const rh = p.relativeHumidity && p.relativeHumidity.value;
+          const desc = p.textDescription || "—";
+
+          condCells = [
+            {k:"Sky / conditions", v:desc},
+            {k:"Temperature", v: temp!==null ? `${temp.toFixed(0)}°F` : "—"},
+            {k:"Wind", v: windMph!==null ? `${windMph.toFixed(0)} mph <small>${dir!==null?dir.toFixed(0)+'°':''}</small>` : "—"},
+            {k:"Gust", v: gustMph!==null ? `${gustMph.toFixed(0)} mph` : "—"},
+            {k:"Rel. humidity", v: rh!==null && rh!==undefined ? `${rh.toFixed(0)}%` : "—"},
+            {k:"Observing station", v: stationId},
+            {k:"Forecast office", v: office},
+            {k:"Obs time", v: new Date(p.timestamp).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}
+          ];
+        }
+      }
+    }catch(e){ /* fall through, we'll still show alerts */ }
+
+    // alerts
+    const alertRes = await fetch(`https://api.weather.gov/alerts/active?point=${s.lat},${s.lon}`);
+    const alertData = await alertRes.json();
+    const alerts = alertData.features || [];
+    analyzeAlertsForStormMode(alerts);
+    updateModeSummary();
+    tryAutoPopulateTrack(alerts);
+    plotAlertPolygonsOnMap(alerts);
+
+    let alertsHtml = "";
+    if(alerts.length === 0){
+      alertsHtml = `<div class="no-alert">● NO ACTIVE NWS ALERTS FOR THIS LOCATION</div>`;
+    }else{
+      alertsHtml = alerts.map(a=>{
+        const ev = a.properties.event || "Alert";
+        const sev = (a.properties.severity||"").toLowerCase();
+        let color = "var(--advisory)";
+        if(ev.toLowerCase().includes("warning")) color = "var(--warn)";
+        else if(ev.toLowerCase().includes("watch")) color = "var(--watch)";
+        const headline = a.properties.headline || "";
+        return `<div class="alert-item">
+          <div class="alert-dot" style="background:${color};"></div>
+          <div><b>${ev}</b><p>${headline}</p></div>
+        </div>`;
+      }).join("");
+    }
+
+    let condGridHtml = "";
+    if(condCells.length){
+      condGridHtml = `<div class="cond-grid">${condCells.map(c=>`
+        <div class="cond-cell"><div class="k">${c.k}</div><div class="v">${c.v}</div></div>
+      `).join("")}</div>`;
+    }else{
+      condGridHtml = `<div class="empty-state">Nearest observation station data unavailable right now.</div>`;
+    }
+
+    condBody.innerHTML = condGridHtml + alertsHtml;
+
+  }catch(err){
+    condBody.innerHTML = `<div class="empty-state">Could not reach api.weather.gov (${err.message}). NWS data may be temporarily unavailable — try again in a moment.</div>`;
+    radarBody.innerHTML = `<div class="empty-state">Radar unavailable without point data.</div>`;
+    document.getElementById('outlookBody').innerHTML = `<div class="empty-state">Outlook unavailable without point data.</div>`;
+    analyzeAlertsForStormMode([]);
+    updateModeSummary();
+    document.getElementById('autoTrackBanner').style.display = 'none';
+    plotAlertPolygonsOnMap([]);
+  }
+}
+
+// NWS hourly forecast for the venue's point — the next several hours, so you can
+// see thunderstorm probability climbing before anything triggers an actual alert.
+async function loadOutlook(url){
+  const body = document.getElementById('outlookBody');
+  if(!url){ body.innerHTML = `<div class="empty-state">No hourly forecast available for this location.</div>`; return; }
+  body.innerHTML = `<div class="empty-state">Loading hourly outlook…</div>`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const periods = (data.properties && data.properties.periods) ? data.properties.periods.slice(0,8) : [];
+    if(!periods.length){ body.innerHTML = `<div class="empty-state">No hourly periods returned.</div>`; return; }
+    body.innerHTML = `<div class="outlook-strip">${periods.map(p=>{
+      const fc = p.shortForecast || "—";
+      const stormy = /thunder|t-storm|tstorm/i.test(fc);
+      const pop = p.probabilityOfPrecipitation && p.probabilityOfPrecipitation.value;
+      const timeLabel = new Date(p.startTime).toLocaleTimeString('en-US',{hour:'numeric'});
+      return `<div class="outlook-cell ${stormy?'stormy':''}">
+        <div class="oc-time">${timeLabel}</div>
+        <div class="oc-temp">${p.temperature}°${p.temperatureUnit}</div>
+        <div class="oc-fc">${fc}</div>
+        ${pop!=null ? `<div class="oc-pop">${pop}% precip</div>` : ''}
+      </div>`;
+    }).join('')}</div>`;
+  }catch(e){
+    body.innerHTML = `<div class="empty-state">Could not load the hourly forecast right now.</div>`;
+  }
+}
+
+// Approximate WSR-88D site coordinates. Covers LA/KY stations plus neighboring-state
+// radars that can be the "nearest" station for venues near a state border.
+// Used only to convert a click on the radar image into an approximate lat/lon —
+// decision-support precision, not survey-grade.
+const RADAR_STATIONS = {
+  KLIX:{lat:30.3367, lon:-89.8256}, // Slidell / New Orleans
+  KLCH:{lat:30.1252, lon:-93.2161}, // Lake Charles
+  KSHV:{lat:32.4508, lon:-93.8412}, // Shreveport
+  KPOE:{lat:31.1556, lon:-92.9756}, // Fort Polk
+  KDGX:{lat:32.2799, lon:-89.9846}, // Jackson MS
+  KGWX:{lat:33.8967, lon:-88.3294}, // Columbus AFB MS
+  KMOB:{lat:30.6795, lon:-88.2397}, // Mobile AL
+  KLVX:{lat:37.9753, lon:-85.9438}, // Louisville / Fort Knox
+  KPAH:{lat:37.0683, lon:-88.7720}, // Paducah
+  KJKL:{lat:37.5908, lon:-83.3131}, // Jackson KY
+  KHPX:{lat:36.7367, lon:-87.2853}, // Fort Campbell / Hopkinsville
+  KVWX:{lat:38.2603, lon:-87.7247}, // Evansville IN
+  KILN:{lat:39.4203, lon:-83.8217}, // Wilmington OH (covers n. KY/Cincinnati)
+  KMRX:{lat:36.1686, lon:-83.4019}  // Morristown TN (covers se. KY)
+};
+
+let currentRadarStation = null; // {id, lat, lon}
+let trackArmed = false;
+let trackPoints = [];           // [{lat, lon, time}], oldest first, capped rolling window like SCIT
+let radarRangeMiles = 125;
+
+/* ---------------- storm mode tabs ---------------- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.dataset.tab;
+    document.querySelectorAll('.tab-panel').forEach(p=>{
+      p.style.display = p.dataset.panel === target ? 'block' : 'none';
+    });
+  });
+});
+
+// Priority: analyst override > NWS auto-read > manual checklist. Purely a display
+// summary — each tab's own content and logic is untouched.
+function updateModeSummary(){
+  const badge = document.getElementById('modeSummaryBadge');
+  const src = document.getElementById('modeSummarySrc');
+  if(document.getElementById('overrideResult').style.display !== 'none'){
+    badge.textContent = document.getElementById('overrideBadge').textContent;
+    badge.style.background = 'var(--advisory)'; badge.style.color = '#fff';
+    src.textContent = 'Source: analyst override';
+    return;
+  }
+  const autoFinding = document.querySelector('#autoModeResult .auto-finding .fk');
+  if(autoFinding){
+    badge.textContent = autoFinding.textContent;
+    badge.style.background = 'var(--panel-3)'; badge.style.color = autoFinding.style.color || 'var(--ink)';
+    src.textContent = 'Source: live NWS product text';
+    return;
+  }
+  if(document.getElementById('modeResult').style.display !== 'none'){
+    badge.textContent = document.getElementById('modeBadge').textContent;
+    badge.style.background = document.getElementById('modeBadge').style.background || 'var(--panel-3)';
+    badge.style.color = document.getElementById('modeBadge').style.color || 'var(--ink)';
+    src.textContent = 'Source: manual checklist';
+    return;
+  }
+  badge.textContent = 'Not set';
+  badge.style.background = 'var(--panel-3)'; badge.style.color = 'var(--ink-dim)';
+  src.textContent = 'Set an override, wait for an auto-read, or run the checklist below.';
+}
+
+/* ---------------- analyst override (one-off calls) ---------------- */
+document.getElementById('setOverrideBtn').addEventListener('click', ()=>{
+  const type = document.getElementById('overrideType').value;
+  const notes = document.getElementById('overrideNotes').value.trim();
+  if(!type){
+    alert("Pick a storm type to set the override.");
+    return;
+  }
+  const badge = document.getElementById('overrideBadge');
+  const text = document.getElementById('overrideText');
+  badge.textContent = `ANALYST SET: ${type.toUpperCase()}`;
+  badge.style.background = "var(--advisory)";
+  badge.style.color = "#fff";
+  text.textContent = notes
+    ? `Set manually by the on-site analyst — overrides the auto-read and checklist below for this call. Notes: ${notes}`
+    : `Set manually by the on-site analyst — overrides the auto-read and checklist below for this call.`;
+  document.getElementById('overrideResult').style.display = 'flex';
+  updateModeSummary();
+});
+
+document.getElementById('clearOverrideBtn').addEventListener('click', ()=>{
+  document.getElementById('overrideType').value = '';
+  document.getElementById('overrideNotes').value = '';
+  document.getElementById('overrideResult').style.display = 'none';
+  updateModeSummary();
+});
+
+/* ---------------- automated storm-mode read from live NWS text ---------------- */
+// This reads the actual text and structured fields of active NWS products for the
+// venue (already fetched from api.weather.gov) — it does not attempt to classify
+// the radar image itself. Pixel analysis of the radar loop isn't possible here:
+// the GIF is served without CORS headers, so a browser canvas can display it but
+// is blocked from reading its pixels, and even with access it's reflectivity-only
+// with no rotation (velocity) data, which is what real supercell detection needs.
+function analyzeAlertsForStormMode(alerts){
+  const box = document.getElementById('autoModeResult');
+  if(!alerts || alerts.length === 0){
+    box.innerHTML = `<div class="empty-state">No active NWS alerts for this location right now — nothing to auto-read. Use the manual checklist below once storms are nearby.</div>`;
+    return;
+  }
+
+  const findings = [];
+  const severeOrTornado = alerts.filter(a=>{
+    const ev = (a.properties.event||"");
+    return /tornado warning|severe thunderstorm warning|special weather statement|severe weather statement/i.test(ev);
+  });
+
+  alerts.forEach(a=>{
+    const p = a.properties;
+    const event = p.event || "Alert";
+    const text = `${p.headline||""} ${p.description||""}`;
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const findQuote = re => (sentences.find(sen=>re.test(sen))||"").trim();
+
+    const params = p.parameters || {};
+    const tornadoDetection = (params.tornadoDetection||[])[0];
+    const tstormDamage = (params.thunderstormDamageThreat||[])[0];
+    const tornadoDamage = (params.tornadoDamageThreat||[])[0];
+
+    if(/supercell/i.test(text)){
+      findings.push({tag:"SUPERCELL", color:"var(--echo-red)", event, quote: findQuote(/supercell/i)});
+    }
+    if(tornadoDetection === "OBSERVED"){
+      findings.push({tag:"CONFIRMED ROTATION — TORNADO OBSERVED", color:"var(--echo-red)", event,
+        quote:`NWS field: tornadoDetection = OBSERVED${tornadoDamage?`, tornadoDamageThreat = ${tornadoDamage}`:""}`});
+    } else if(tornadoDetection === "RADAR INDICATED"){
+      findings.push({tag:"ROTATION — RADAR-INDICATED TORNADO", color:"var(--echo-red)", event,
+        quote:`NWS field: tornadoDetection = RADAR INDICATED${tornadoDamage?`, tornadoDamageThreat = ${tornadoDamage}`:""}`});
+    }
+    if(/rotat(e|ion|ing)|mesocyclone|wall cloud/i.test(text) && !/supercell/i.test(text)){
+      findings.push({tag:"ROTATION REPORTED", color:"var(--echo-red)", event, quote: findQuote(/rotat(e|ion|ing)|mesocyclone|wall cloud/i)});
+    }
+    if(/bow echo|bowing segment/i.test(text)){
+      findings.push({tag:"BOW ECHO / QLCS", color:"var(--echo-purple)", event, quote: findQuote(/bow echo|bowing segment/i)});
+    } else if(/squall line|quasi-linear/i.test(text)){
+      findings.push({tag:"SQUALL LINE", color:"var(--echo-yellow)", event, quote: findQuote(/squall line|quasi-linear/i)});
+    }
+    if(tstormDamage === "DESTRUCTIVE"){
+      findings.push({tag:"DESTRUCTIVE WIND THREAT", color:"var(--echo-purple)", event,
+        quote:`NWS field: thunderstormDamageThreat = DESTRUCTIVE (110+ mph gusts — consistent with an intense bow echo / QLCS core)`});
+    } else if(tstormDamage === "CONSIDERABLE"){
+      findings.push({tag:"CONSIDERABLE WIND/HAIL THREAT", color:"var(--echo-yellow)", event,
+        quote:`NWS field: thunderstormDamageThreat = CONSIDERABLE`});
+    }
+    if(/multicell|cluster of (severe )?thunderstorms/i.test(text)){
+      findings.push({tag:"MULTICELL CLUSTER", color:"var(--echo-yellow)", event, quote: findQuote(/multicell|cluster of (severe )?thunderstorms/i)});
+    }
+  });
+
+  if(findings.length === 0){
+    if(severeOrTornado.length > 0){
+      box.innerHTML = `<div class="auto-card">
+        <div class="auto-head"><span class="mode-badge" style="background:var(--ink-faint);color:#0d1117;">MODE NOT STATED IN TEXT</span></div>
+        <div class="mode-text">${severeOrTornado.length} active severe product${severeOrTornado.length>1?'s':''} for this location, but the warning text doesn't spell out storm structure. Open the full product or use the manual checklist below.</div>
+      </div>`;
+    } else {
+      box.innerHTML = `<div class="empty-state">Active NWS products for this location don't mention storm-mode language (supercell, rotation, bow echo, squall line). Use the manual checklist below based on what you're seeing on radar.</div>`;
+    }
+    return;
+  }
+
+  // de-duplicate identical tag+event combos
+  const seen = new Set();
+  const unique = findings.filter(f=>{
+    const key = f.tag+'|'+f.event;
+    if(seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+
+  box.innerHTML = `<div class="auto-card">
+    ${unique.map(f=>`
+      <div class="auto-finding" style="border-left-color:${f.color};">
+        <div class="tag-row"><span class="fk" style="color:${f.color};">${f.tag}</span><span class="fsrc">— from active ${f.event}</span></div>
+        ${f.quote ? `<div class="auto-quote">"${f.quote}"</div>` : ""}
+      </div>`).join("")}
+  </div>`;
+}
+
+// Real interactive map (Leaflet + OpenStreetMap) showing the venue and, once known,
+// the radar site it's being compared against — replaces the earlier on-image star,
+// which relied on an unverified assumption about the radar GIF's real-world scale.
+let venueMap = null;
+let venueMarker = null;
+let radarSiteMarker = null;
+let connectLine = null;
+let alertPolyLayer = null;
+
+// Draws each active alert's real NWS warning polygon on the venue map — tornado
+// warnings in red, severe t-storm (and other) warnings in amber — so the map shows
+// not just where the venue is, but what's actually bearing down on it right now.
+function plotAlertPolygonsOnMap(alerts){
+  if(!venueMap || !alertPolyLayer) return;
+  alertPolyLayer.clearLayers();
+  (alerts||[]).forEach(a=>{
+    if(!a.geometry) return;
+    const isTornado = /tornado/i.test(a.properties.event||"");
+    const color = isTornado ? '#ef4b3d' : '#f0c33c';
+    L.geoJSON(a.geometry, {style:{color, weight:2, fillOpacity:0.12}})
+      .bindPopup(`<b>${a.properties.event||'Alert'}</b>`)
+      .addTo(alertPolyLayer);
+  });
+}
+
+function showVenueOnMap(s){
+  if(!window.L) return;
+  if(!venueMap){
+    venueMap = L.map('venueMap', {attributionControl:true}).setView([s.lat, s.lon], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 13,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(venueMap);
+    alertPolyLayer = L.layerGroup().addTo(venueMap);
+  }
+  if(alertPolyLayer) alertPolyLayer.clearLayers();
+  [venueMarker, radarSiteMarker, connectLine].forEach(l=>{ if(l) venueMap.removeLayer(l); });
+  radarSiteMarker = null; connectLine = null;
+
+  const starIcon = L.divIcon({html:'★', className:'venue-star-icon', iconSize:[24,24], iconAnchor:[12,16]});
+  venueMarker = L.marker([s.lat, s.lon], {icon:starIcon}).addTo(venueMap)
+    .bindPopup(`<b>${s.name}</b><br>${s.city}`).openPopup();
+  venueMap.setView([s.lat, s.lon], 9);
+
+  document.getElementById('mapHint').textContent = "Star marks the stadium — loading radar site…";
+  document.getElementById('mapStats').innerHTML = "";
+}
+
+function addRadarSiteToMap(){
+  if(!window.L || !venueMap || !currentRadarStation || !selectedStadium) return;
+  const s = selectedStadium;
+  const rc = [currentRadarStation.lat, currentRadarStation.lon];
+
+  if(radarSiteMarker) venueMap.removeLayer(radarSiteMarker);
+  if(connectLine) venueMap.removeLayer(connectLine);
+
+  if(currentRadarStation.exact){
+    const radarIcon = L.divIcon({html:'📡', className:'radar-site-icon', iconSize:[22,22], iconAnchor:[11,11]});
+    radarSiteMarker = L.marker(rc, {icon:radarIcon}).addTo(venueMap)
+      .bindPopup(`Radar site ${currentRadarStation.id}`);
+    connectLine = L.polyline([[s.lat,s.lon], rc], {color:'#6cc2f2', weight:2, dashArray:'5,7', opacity:.8}).addTo(venueMap);
+    venueMap.fitBounds(L.latLngBounds([[s.lat,s.lon], rc]), {padding:[36,36], maxZoom:10});
+
+    const dist = haversineMiles(s.lat, s.lon, currentRadarStation.lat, currentRadarStation.lon);
+    const brg = bearingDeg(currentRadarStation.lat, currentRadarStation.lon, s.lat, s.lon);
+    document.getElementById('mapHint').textContent = "Star marks the stadium; the dish icon marks the radar site used above";
+    document.getElementById('mapStats').innerHTML = `
+      <div class="cond-cell"><div class="k">Radar site</div><div class="v">${currentRadarStation.id}</div></div>
+      <div class="cond-cell"><div class="k">Distance to radar</div><div class="v">${dist.toFixed(0)} mi</div></div>
+      <div class="cond-cell"><div class="k">Venue bearing from radar</div><div class="v">${brg.toFixed(0)}° ${compassFromDeg(brg)}</div></div>
+      <div class="cond-cell"><div class="k">Venue coordinates</div><div class="v" style="font-size:13px;">${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}</div></div>`;
+  } else {
+    document.getElementById('mapHint').textContent = `Radar site ${currentRadarStation.id} coordinates aren't on file, so only the venue is plotted`;
+    document.getElementById('mapStats').innerHTML = `<div class="empty-state">Radar site ${currentRadarStation.id} isn't in the coordinate table yet — venue location above is still accurate.</div>`;
+  }
+}
+
+function renderRadar(station, s){
+  const radarBody = document.getElementById('radarBody');
+  if(!station){
+    radarBody.innerHTML = `<div class="empty-state">No radar station returned for this location.</div>`;
+    currentRadarStation = null;
+    return;
+  }
+  const known = RADAR_STATIONS[station];
+  // Fall back to the venue's own coordinates as the calibration center if we don't
+  // have the exact radar site on file — marking still works, just flagged as approximate.
+  const centerLat = known ? known.lat : s.lat;
+  const centerLon = known ? known.lon : s.lon;
+  currentRadarStation = {id:station, lat:centerLat, lon:centerLon, exact:!!known};
+  trackArmed = false;
+  addRadarSiteToMap();
+
+  const loopUrl = () => `https://radar.weather.gov/ridge/standard/${station}_loop.gif?t=${Date.now()}`;
+  const pageUrl = `https://radar.weather.gov/station/${station}/standard`;
+
+  const calibNote = known
+    ? ""
+    : ` <span style="color:var(--caution);">Exact ${station} coordinates aren't on file — calibrated to the venue location instead, so treat positions as rougher estimates.</span>`;
+
+  const toolbarHtml = `
+    <div class="mark-toolbar">
+      <button class="mark-btn arm1" id="armTrack">📍 Add track point</button>
+      <span class="calib">RANGE <input type="number" id="radarRangeInput" value="${radarRangeMiles}" min="20" max="300"> mi to image edge</span>
+      <button class="mark-btn clear" id="clearMarksBtn">Clear track</button>
+    </div>
+    <div class="mark-toolbar">
+      <button class="mark-btn" id="zoomInBtn">🔍 Zoom in</button>
+      <button class="mark-btn" id="zoomOutBtn">🔍 Zoom out</button>
+      <button class="mark-btn" id="zoomResetBtn">Reset view</button>
+      <span class="calib" id="zoomLevelLabel">1.0×</span>
+      <button class="mark-btn clear" id="refreshRadarBtn">↻ Refresh radar</button>
+      <span class="calib" id="radarAgeLabel"></span>
+    </div>
+    <div class="mark-hint">Scroll to zoom, drag to pan. Click <b>Add track point</b>, then click the storm's center on the image — repeat each time you check the loop (a few minutes apart) to build a track, same idea as WSR-88D's SCIT storm-tracking display: numbered past positions, a track line, and an extrapolated position 15 min ahead. If this ever looks out of sync with radar.weather.gov itself, hit Refresh — browsers can hold onto a cached copy of the loop image.${calibNote}</div>
+  `;
+
+  radarBody.innerHTML = `
+    ${toolbarHtml}
+    <div class="radar-wrap">
+      <div class="radar-img-box" id="radarImgBox">
+        <div class="radar-zoom-layer" id="radarZoomLayer">
+          <img id="radarImg" src="${loopUrl()}" alt="Radar loop for ${station}" onerror="this.dataset.failed='1'; this.parentElement.innerHTML='<div class=radar-fallback>Inline radar loop unavailable in this view.<br>Open the live loop with the link at right — you can still click here to add track points.</div>';">
+          <svg id="trackSvg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
+        </div>
+      </div>
+      <div class="radar-side">
+        <div class="kv"><span>Radar site</span><span>${station}</span></div>
+        <div class="kv"><span>Venue</span><span>${s.name}</span></div>
+        <div class="kv"><span>Coordinates</span><span>${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}</span></div>
+        <div style="margin-top:8px;"><a class="ext-link" href="${pageUrl}" target="_blank" rel="noopener">Open full NWS radar viewer ↗ (cross-check here)</a></div>
+        <div style="margin-top:4px;"><a class="ext-link" href="https://www.spc.noaa.gov/" target="_blank" rel="noopener">SPC mesoanalysis / outlooks ↗</a></div>
+        <div style="margin-top:4px;"><a class="ext-link" href="https://www.google.com/search?q=${encodeURIComponent(s.name+' severe weather lightning delay policy')}" target="_blank" rel="noopener">Search ${s.name}'s official weather policy ↗</a></div>
+      </div>
+    </div>`;
+
+  const refreshBtn = document.getElementById('refreshRadarBtn');
+  const ageLabel = document.getElementById('radarAgeLabel');
+  let lastRefresh = Date.now();
+
+  function refreshRadarImg(){
+    const imgEl = document.getElementById('radarImg');
+    if(imgEl){
+      imgEl.dataset.failed = '';
+      imgEl.src = loopUrl();
+    }
+    lastRefresh = Date.now();
+    if(ageLabel) ageLabel.textContent = 'just refreshed';
+  }
+  refreshBtn.addEventListener('click', refreshRadarImg);
+
+  if(window.__radarAutoRefresh) clearInterval(window.__radarAutoRefresh);
+  window.__radarAutoRefresh = setInterval(()=>{
+    refreshRadarImg();
+  }, 3 * 60 * 1000); // WSR-88D volume scans update roughly every 4-6 min; refresh a bit faster than that
+
+  const ageTicker = setInterval(()=>{
+    if(!ageLabel || !document.body.contains(ageLabel)){ clearInterval(ageTicker); return; }
+    const mins = Math.floor((Date.now()-lastRefresh)/60000);
+    ageLabel.textContent = mins < 1 ? 'just refreshed' : `loaded ${mins} min ago`;
+  }, 15000);
+
+  const box = document.getElementById('radarImgBox');
+  const zoomLayer = document.getElementById('radarZoomLayer');
+  const armBtn = document.getElementById('armTrack');
+  const clearBtn = document.getElementById('clearMarksBtn');
+  const rangeInput = document.getElementById('radarRangeInput');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const zoomResetBtn = document.getElementById('zoomResetBtn');
+  const zoomLabel = document.getElementById('zoomLevelLabel');
+
+  // Zoom/pan state — reset fresh for every newly rendered radar image.
+  let zoom = 1, panX = 0, panY = 0;
+  const MIN_ZOOM = 1, MAX_ZOOM = 5;
+
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function applyTransform(){
+    const w = box.clientWidth, h = box.clientHeight;
+    panX = clamp(panX, w*(1-zoom), 0);
+    panY = clamp(panY, h*(1-zoom), 0);
+    zoomLayer.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    zoomLabel.textContent = `${zoom.toFixed(1)}×`;
+    box.classList.toggle('zoomed', zoom > 1);
+  }
+
+  function zoomAt(cx, cy, factor){
+    const newZoom = clamp(zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    if(newZoom === zoom) return;
+    const imgX = (cx - panX) / zoom, imgY = (cy - panY) / zoom;
+    zoom = newZoom;
+    panX = cx - imgX * zoom;
+    panY = cy - imgY * zoom;
+    applyTransform();
+  }
+
+  zoomInBtn.addEventListener('click', ()=> zoomAt(box.clientWidth/2, box.clientHeight/2, 1.5));
+  zoomOutBtn.addEventListener('click', ()=> zoomAt(box.clientWidth/2, box.clientHeight/2, 1/1.5));
+  zoomResetBtn.addEventListener('click', ()=>{ zoom=1; panX=0; panY=0; applyTransform(); });
+
+  box.addEventListener('wheel', (ev)=>{
+    ev.preventDefault();
+    const rect = box.getBoundingClientRect();
+    const cx = ev.clientX - rect.left, cy = ev.clientY - rect.top;
+    zoomAt(cx, cy, ev.deltaY < 0 ? 1.2 : 1/1.2);
+  }, {passive:false});
+
+  rangeInput.addEventListener('input', ()=>{
+    const v = parseFloat(rangeInput.value);
+    if(!isNaN(v) && v>0){ radarRangeMiles = v; redrawTrack(); redrawMRMSCellTracks(); }
+  });
+
+  armBtn.addEventListener('click', ()=>{
+    trackArmed = !trackArmed;
+    armBtn.classList.toggle('active', trackArmed);
+    armBtn.textContent = trackArmed ? '📍 Click the storm…' : '📍 Add track point';
+  });
+
+  clearBtn.addEventListener('click', clearTrack);
+
+  function imgXYFromClick(cx, cy){
+    return { imgX: (cx - panX) / zoom, imgY: (cy - panY) / zoom };
+  }
+
+  function addTrackPointFromXY(imgX, imgY){
+    const {lat, lon} = imgXYToLatLon(imgX, imgY, box);
+
+    let time = new Date().toTimeString().slice(0,5);
+    if(trackPoints.length > 0){
+      const prevTime = trackPoints[trackPoints.length-1].time;
+      if(prevTime && time === prevTime) time = addMinutesToHHMM(prevTime, 5);
+    }
+    trackPoints.push({lat, lon, time});
+    if(trackPoints.length > 6) trackPoints.shift(); // rolling window, like SCIT's recent-position history
+
+    trackArmed = false;
+    armBtn.classList.remove('active');
+    armBtn.textContent = '📍 Add track point';
+
+    redrawTrack();
+    renderTrackPointsUI();
+    computeTrackMotion();
+  }
+
+  // Pointer-based drag-to-pan, with a movement threshold so a still click still
+  // registers as adding a track point instead of being swallowed as a tiny drag.
+  let dragging = false, dragMoved = false, dragStartX = 0, dragStartY = 0, startPanX = 0, startPanY = 0;
+
+  box.addEventListener('pointerdown', (ev)=>{
+    dragging = true; dragMoved = false;
+    dragStartX = ev.clientX; dragStartY = ev.clientY;
+    startPanX = panX; startPanY = panY;
+    box.setPointerCapture(ev.pointerId);
+    box.classList.add('dragging');
+  });
+
+  box.addEventListener('pointermove', (ev)=>{
+    if(!dragging) return;
+    const dx = ev.clientX - dragStartX, dy = ev.clientY - dragStartY;
+    if(Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+    panX = startPanX + dx; panY = startPanY + dy;
+    applyTransform();
+  });
+
+  box.addEventListener('pointerup', (ev)=>{
+    if(!dragging) return;
+    dragging = false;
+    box.classList.remove('dragging');
+    if(!dragMoved && trackArmed){
+      const rect = box.getBoundingClientRect();
+      const cx = ev.clientX - rect.left, cy = ev.clientY - rect.top;
+      const {imgX, imgY} = imgXYFromClick(cx, cy);
+      addTrackPointFromXY(imgX, imgY);
+    }
+  });
+
+  applyTransform();
+  redrawTrack();
+}
+
+function addMinutesToHHMM(hhmm, mins){
+  const [h,m] = hhmm.split(':').map(Number);
+  let total = (h*60+m+mins) % (24*60);
+  if(total < 0) total += 24*60;
+  const hh = String(Math.floor(total/60)).padStart(2,'0');
+  const mm = String(total%60).padStart(2,'0');
+  return `${hh}:${mm}`;
+}
+
+/* ---------------- storm motion calculator ---------------- */
+function haversineMiles(lat1,lon1,lat2,lon2){
+  const R = 3958.8;
+  const toRad = d => d*Math.PI/180;
+  const dLat = toRad(lat2-lat1);
+  const dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function bearingDeg(lat1,lon1,lat2,lon2){
+  const toRad = d => d*Math.PI/180;
+  const y = Math.sin(toRad(lon2-lon1))*Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(toRad(lon2-lon1));
+  let brng = Math.atan2(y,x)*180/Math.PI;
+  return (brng+360)%360;
+}
+function compassFromDeg(d){
+  const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return dirs[Math.round(d/22.5)%16];
+}
+
+let lastStormEtaMinutes = null;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Converts a lat/lon back into the same unscaled image-pixel space used for clicks,
+// so manually-typed points and clicked points render identically on the track.
+function latLonToImgXY(lat, lon, box){
+  if(!currentRadarStation || !box) return null;
+  const offsetXmiles = (lon - currentRadarStation.lon) * 69.0 * Math.cos(currentRadarStation.lat*Math.PI/180);
+  const offsetYmiles = (lat - currentRadarStation.lat) * 69.0;
+  const fracX = offsetXmiles / radarRangeMiles;
+  const fracY = -offsetYmiles / radarRangeMiles;
+  return { x: ((fracX/2)+0.5) * box.clientWidth, y: ((fracY/2)+0.5) * box.clientHeight };
+}
+
+// Great-circle-ish destination point given a start, bearing, and distance — used to
+// draw the extrapolated forecast position ahead of the most recent track point.
+function destinationPoint(lat, lon, bearingDegVal, distMi){
+  const rad = bearingDegVal * Math.PI/180;
+  const dLat = distMi * Math.cos(rad) / 69.0;
+  const dLon = distMi * Math.sin(rad) / (69.0 * Math.cos(lat*Math.PI/180));
+  return { lat: lat+dLat, lon: lon+dLon };
+}
+
+function redrawTrack(){
+  const box = document.getElementById('radarImgBox');
+  const svg = document.getElementById('trackSvg');
+  if(!box || !svg) return;
+  svg.innerHTML = '';
+  if(!currentRadarStation || trackPoints.length === 0) return;
+
+  const pts = trackPoints.map(p => latLonToImgXY(p.lat, p.lon, box)).filter(Boolean);
+
+  if(pts.length > 1){
+    const poly = document.createElementNS(SVG_NS,'polyline');
+    poly.setAttribute('points', pts.map(p=>`${p.x},${p.y}`).join(' '));
+    poly.setAttribute('fill','none');
+    poly.setAttribute('stroke','#ffd54f');
+    poly.setAttribute('stroke-width','2');
+    svg.appendChild(poly);
+  }
+
+  pts.forEach((p,i)=>{
+    const isLast = i === pts.length-1;
+    const circle = document.createElementNS(SVG_NS,'circle');
+    circle.setAttribute('cx',p.x); circle.setAttribute('cy',p.y);
+    circle.setAttribute('r', isLast? 9:6);
+    circle.setAttribute('fill', isLast? '#e0432c':'#6cc2f2');
+    circle.setAttribute('stroke','#000'); circle.setAttribute('stroke-width','1.5');
+    svg.appendChild(circle);
+    const label = document.createElementNS(SVG_NS,'text');
+    label.setAttribute('x',p.x); label.setAttribute('y', p.y+3.5);
+    label.setAttribute('text-anchor','middle');
+    label.setAttribute('font-size','10'); label.setAttribute('font-family','monospace');
+    label.setAttribute('fill', isLast ? '#fff' : '#062633'); label.setAttribute('font-weight','700');
+    label.textContent = i+1;
+    svg.appendChild(label);
+  });
+
+  // Extrapolated forecast position from the most recent track leg (last two points).
+  if(trackPoints.length >= 2){
+    const a = trackPoints[trackPoints.length-2], b = trackPoints[trackPoints.length-1];
+    const leg = computeLeg(a,b);
+    if(leg){
+      const leadMin = 15;
+      const distMi = leg.speedMph * (leadMin/60);
+      const dest = destinationPoint(b.lat, b.lon, leg.headingDeg, distMi);
+      const fpt = latLonToImgXY(dest.lat, dest.lon, box);
+      const lastPt = pts[pts.length-1];
+      if(fpt && lastPt){
+        const line = document.createElementNS(SVG_NS,'line');
+        line.setAttribute('x1', lastPt.x); line.setAttribute('y1', lastPt.y);
+        line.setAttribute('x2', fpt.x); line.setAttribute('y2', fpt.y);
+        line.setAttribute('stroke','#f2b56b'); line.setAttribute('stroke-width','2'); line.setAttribute('stroke-dasharray','4,5');
+        svg.appendChild(line);
+        const fc = document.createElementNS(SVG_NS,'circle');
+        fc.setAttribute('cx',fpt.x); fc.setAttribute('cy',fpt.y); fc.setAttribute('r',7);
+        fc.setAttribute('fill','none'); fc.setAttribute('stroke','#f2b56b'); fc.setAttribute('stroke-width','2');
+        svg.appendChild(fc);
+        const flabel = document.createElementNS(SVG_NS,'text');
+        flabel.setAttribute('x',fpt.x); flabel.setAttribute('y',fpt.y-12);
+        flabel.setAttribute('text-anchor','middle'); flabel.setAttribute('font-size','9');
+        flabel.setAttribute('font-family','monospace'); flabel.setAttribute('fill','#f2b56b'); flabel.setAttribute('font-weight','700');
+        flabel.textContent = `+${leadMin}m`;
+        svg.appendChild(flabel);
+      }
+    }
+  }
+}
+
+// Shared pixel->lat/lon conversion used by both manual clicks and the pixel-analysis
+// auto-detector, so both feed the track in exactly the same coordinate space.
+function imgXYToLatLon(imgX, imgY, box){
+  const fracX = ((imgX/box.clientWidth) - 0.5) * 2;
+  const fracY = ((imgY/box.clientHeight) - 0.5) * 2;
+  const offsetXmiles = fracX * radarRangeMiles;
+  const offsetYmiles = fracY * radarRangeMiles;
+  const dLat = -offsetYmiles / 69.0;
+  const dLon = offsetXmiles / (69.0 * Math.cos(currentRadarStation.lat*Math.PI/180));
+  return { lat: currentRadarStation.lat + dLat, lon: currentRadarStation.lon + dLon };
+}
+
+// ---------------- automatic cell detection: NOAA MRMS national mosaic ----------------
+// Uses NOAA's own ArcGIS ImageServer for the MRMS base reflectivity mosaic — a
+// service built specifically for cross-origin embedding in web-mapping apps
+// (Esri's whole product line depends on that), unlike the plain static image
+// directory at radar.weather.gov that got CORS-blocked. Requesting bboxSR=4326 and
+// imageSR=4326 returns a plain lat/lon-gridded image, so every pixel maps back to
+// an exact coordinate — no "estimated range in miles" guessing needed.
+// The MRMS bbox is a pure function of (venue, radius) — computing it the same way
+// every time means any lat/lon can be converted back to this image's pixel space
+// exactly, on demand, without needing to store per-fetch state.
+function mrmsBBox(centerLat, centerLon, radiusMiles){
+  const boxMiles = radiusMiles * 1.3; // fetch a bit wider than the radius so cell centroids near the edge aren't clipped
+  const dLatDeg = boxMiles/69;
+  const dLonDeg = boxMiles/(69*Math.cos(centerLat*Math.PI/180));
+  return { minLon: centerLon-dLonDeg, maxLon: centerLon+dLonDeg, minLat: centerLat-dLatDeg, maxLat: centerLat+dLatDeg };
+}
+function mrmsLatLonToPixel(lat, lon, width, height, bbox){
+  return {
+    x: ((lon-bbox.minLon)/(bbox.maxLon-bbox.minLon)) * width,
+    y: ((bbox.maxLat-lat)/(bbox.maxLat-bbox.minLat)) * height
+  };
+}
+
+function fetchMRMSPixels(centerLat, centerLon, radiusMiles){
+  return new Promise((resolve, reject)=>{
+    const size = 600;
+    const bbox = mrmsBBox(centerLat, centerLon, radiusMiles);
+    const url = `https://mapservices.weather.noaa.gov/eventdriven/rest/services/radar/radar_base_reflectivity_time/ImageServer/exportImage?bbox=${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}&bboxSR=4326&imageSR=4326&size=${size},${size}&format=png32&f=image&t=${Date.now()}`;
+
+    const probe = new Image();
+    probe.crossOrigin = 'anonymous';
+    probe.onload = () => {
+      try{
+        const canvas = document.getElementById('mrmsCanvas'); // draw straight into the visible canvas
+        canvas.width = probe.naturalWidth; canvas.height = probe.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(probe, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height); // throws if tainted
+        document.getElementById('mrmsViewerWrap').style.display = 'block';
+        resolve({ imgData, width: canvas.width, height: canvas.height, bbox, ctx });
+      }catch(e){
+        reject(new Error("NOAA's map service also did not grant this browser pixel-read (CORS) permission."));
+      }
+    };
+    probe.onerror = () => reject(new Error("The NOAA map image failed to load in CORS mode."));
+    probe.src = url;
+  });
+}
+
+// Approximate NWS/MRMS standard base-reflectivity palette: targets yellow/orange/
+// red/magenta bands (~35 dBZ and hotter), the typical SCIT minimum-reflectivity
+// threshold for calling something a storm cell rather than light rain. Skips
+// transparent (no-data) pixels using the alpha channel from format=png32.
+function isStormPixel(r,g,b,a){
+  if(a !== undefined && a < 40) return false;
+  if(r>200 && g>180 && b<120) return true;               // yellow (~35-40 dBZ)
+  if(r>220 && g>110 && g<=200 && b<100) return true;      // orange (~40-50 dBZ)
+  if(r>190 && g<100 && b<100) return true;                // red (~50-60 dBZ)
+  if(r>150 && b>150 && g<120) return true;                // magenta/purple (extreme)
+  return false;
+}
+
+// Iterative (non-recursive, to avoid stack limits) flood-fill connected-component
+// labeling over the thresholded pixels — the actual "find storm cells" step.
+function findStormCells(imgData, width, height){
+  const data = imgData.data;
+  const visited = new Uint8Array(width*height);
+  const cells = [];
+  for(let y=0; y<height; y++){
+    for(let x=0; x<width; x++){
+      const i = y*width+x;
+      if(visited[i]) continue;
+      const p = i*4;
+      if(!isStormPixel(data[p],data[p+1],data[p+2],data[p+3])){ visited[i]=1; continue; }
+      const queue=[i]; visited[i]=1;
+      let sumX=0, sumY=0, count=0, qi=0;
+      while(qi<queue.length){
+        const ci = queue[qi++];
+        const cx = ci % width, cy = (ci/width)|0;
+        sumX+=cx; sumY+=cy; count++;
+        const neighbors = [ci-1,ci+1,ci-width,ci+width];
+        for(const ni of neighbors){
+          if(ni<0 || ni>=width*height) continue;
+          if((ni%width===0 && ci%width===width-1) || (ci%width===0 && ni%width===width-1)) continue; // row wrap guard
+          if(visited[ni]) continue;
+          const np = ni*4;
+          visited[ni]=1;
+          if(isStormPixel(data[np],data[np+1],data[np+2],data[np+3])) queue.push(ni);
+        }
+      }
+      if(count >= 40) cells.push({x: sumX/count, y: sumY/count, count}); // drop noise-sized blobs
+    }
+  }
+  return cells.sort((a,b)=>b.count-a.count);
+}
+
+let mrmsAutoInterval = null;
+let mrmsCellTracks = [];   // [{id, color, points:[{lat,lon,time}], lastSeenSample}]
+let mrmsSampleCount = 0;
+const MRMS_CELL_COLORS = ['#3ddc84','#5ec8f2','#f0c33c','#c266e8','#ef4b3d','#f2b56b'];
+const MRMS_MATCH_RADIUS_MI = 25; // how far a cell can move between samples and still count as "the same" cell
+
+async function runMRMSAutoDetect(){
+  const statusEl = document.getElementById('mrmsStatus');
+  if(!selectedStadium){ statusEl.textContent = "Select a venue first."; return; }
+  const radiusMiles = parseFloat(document.getElementById('mrmsRadiusInput').value) || 50;
+  statusEl.textContent = "Requesting pixel access from NOAA's map service…";
+  try{
+    const { imgData, width, height, bbox, ctx } = await fetchMRMSPixels(selectedStadium.lat, selectedStadium.lon, radiusMiles);
+    statusEl.textContent = "Access granted — scanning national mosaic for cells…";
+    const allCells = findStormCells(imgData, width, height);
+    const candidates = allCells.map(c=>{
+      const lon = bbox.minLon + (c.x/width)*(bbox.maxLon-bbox.minLon);
+      const lat = bbox.maxLat - (c.y/height)*(bbox.maxLat-bbox.minLat);
+      const distToVenue = haversineMiles(lat, lon, selectedStadium.lat, selectedStadium.lon);
+      return {lat, lon, count:c.count, distToVenue};
+    });
+
+    // Real circular radius filter — the fetch box is square, but selection is
+    // constrained to actual distance from the venue, not just "somewhere in the box."
+    const inRadius = candidates.filter(c => c.distToVenue <= radiusMiles);
+    mrmsSampleCount++;
+    const now = new Date().toTimeString().slice(0,5);
+
+    if(inRadius.length === 0){
+      const msg = candidates.length
+        ? `Found ${candidates.length} cell(s) on the mosaic, but none within ${radiusMiles} mi of the venue — nearest is ${candidates.sort((a,b)=>a.distToVenue-b.distToVenue)[0].distToVenue.toFixed(0)} mi away.`
+        : `No cells ≥~35 dBZ found anywhere nearby right now.`;
+      statusEl.textContent = msg + ` Existing tracked cells (if any) are left as-is.`;
+      redrawMRMSCanvas(ctx, bbox, width, height);
+      renderMRMSCellList();
+      return;
+    }
+
+    // Match each in-radius candidate to an existing cell track by nearest distance
+    // to that track's last known point (within MRMS_MATCH_RADIUS_MI); unmatched
+    // candidates start new tracks, so several storms get followed independently.
+    const pool = inRadius.slice();
+    mrmsCellTracks.forEach(track=>{
+      const last = track.points[track.points.length-1];
+      let bestIdx = -1, bestDist = Infinity;
+      pool.forEach((c,i)=>{
+        const d = haversineMiles(last.lat,last.lon,c.lat,c.lon);
+        if(d < bestDist){ bestDist = d; bestIdx = i; }
+      });
+      if(bestIdx >= 0 && bestDist <= MRMS_MATCH_RADIUS_MI){
+        const c = pool.splice(bestIdx,1)[0];
+        let t = now;
+        if(t === last.time) t = addMinutesToHHMM(last.time, 3);
+        track.points.push({lat:c.lat, lon:c.lon, time:t});
+        if(track.points.length > 6) track.points.shift();
+        track.lastSeenSample = mrmsSampleCount;
+      }
+    });
+    // Remaining unmatched candidates become new tracks (cap total tracked cells).
+    // Label/color assigned once at creation and kept for the track's lifetime, so
+    // a specific storm doesn't relabel from B to A when another track drops off.
+    pool.sort((a,b)=>b.count-a.count).forEach(c=>{
+      if(mrmsCellTracks.length >= MRMS_CELL_COLORS.length) return;
+      const usedLabels = new Set(mrmsCellTracks.map(t=>t.label));
+      let li = 0; while(usedLabels.has(String.fromCharCode(65+li))) li++;
+      mrmsCellTracks.push({
+        id: 'cell'+Date.now()+Math.random().toString(16).slice(2,6),
+        label: String.fromCharCode(65+li),
+        color: MRMS_CELL_COLORS[li % MRMS_CELL_COLORS.length],
+        points: [{lat:c.lat, lon:c.lon, time:now}],
+        lastSeenSample: mrmsSampleCount
+      });
+    });
+    // Drop cells not re-detected for 3 samples in a row (moved out of radius, dissipated, or a miss).
+    mrmsCellTracks = mrmsCellTracks.filter(t => mrmsSampleCount - t.lastSeenSample < 3);
+
+    redrawMRMSCanvas(ctx, bbox, width, height);
+    renderMRMSCellList();
+
+    statusEl.textContent = `It worked! Tracking ${mrmsCellTracks.length} cell(s) within ${radiusMiles} mi. Pick one below to drive the lead-time decision. ${mrmsAutoInterval ? 'Sampling again in a few minutes.' : 'Use "Start automatic tracking" to keep this updating without clicking.'}`;
+  }catch(e){
+    if(mrmsAutoInterval){ clearInterval(mrmsAutoInterval); mrmsAutoInterval = null; updateMRMSAutoBtn(); }
+    statusEl.textContent = `Not possible on this browser/venue: ${e.message} The manual and NWS-text-based tracking above still work fully.`;
+  }
+}
+
+// Draws every tracked cell's path (own color) on the radar image, each labeled by
+// short ID so it matches the list below.
+// Redraws every tracked cell's path directly on the visible canvas, on top of the
+// base image that fetchMRMSPixels just drew — same canvas, same pixels the
+// detection actually ran on, so there's no separate calibration to get wrong.
+function redrawMRMSCanvas(ctx, bbox, width, height){
+  mrmsCellTracks.forEach(track=>{
+    const pts = track.points.map(p => mrmsLatLonToPixel(p.lat, p.lon, width, height, bbox));
+    if(pts.length > 1){
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
+      ctx.strokeStyle = track.color; ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    const last = pts[pts.length-1];
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, 9, 0, Math.PI*2);
+    ctx.fillStyle = track.color; ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(track.label, last.x, last.y+4);
+  });
+
+  // Mark the venue itself too, so it's obvious how close each tracked cell actually is.
+  const vp = mrmsLatLonToPixel(selectedStadium.lat, selectedStadium.lon, width, height, bbox);
+  ctx.beginPath();
+  ctx.arc(vp.x, vp.y, 6, 0, Math.PI*2);
+  ctx.fillStyle = '#ffd54f'; ctx.fill();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+function renderMRMSCellList(){
+  const listEl = document.getElementById('mrmsCellList');
+  if(!listEl) return;
+  if(mrmsCellTracks.length === 0){ listEl.innerHTML = ''; return; }
+  listEl.innerHTML = mrmsCellTracks.map((track)=>{
+    const last = track.points[track.points.length-1];
+    const dist = haversineMiles(last.lat, last.lon, selectedStadium.lat, selectedStadium.lon);
+    const leg = track.points.length >= 2 ? computeLeg(track.points[track.points.length-2], last) : null;
+    const motionStr = leg ? `${leg.speedMph.toFixed(0)} mph @ ${compassFromDeg(leg.headingDeg)}` : `${track.points.length} sample — need another to get speed`;
+    return `<div class="rv-cell-row" id="mrmsCellRow${track.label}">
+      <span class="rv-cell-num" style="color:${track.color};">${track.label}</span>
+      <span style="flex:1;">${dist.toFixed(0)} mi from venue · ${motionStr}</span>
+      <button class="btn ghost" data-track="${track.id}" style="padding:5px 12px;font-size:11.5px;">Use for decision</button>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('[data-track]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const track = mrmsCellTracks.find(t=>t.id === btn.dataset.track);
+      if(!track) return;
+      trackPoints = track.points.map(p=>({...p}));
+      redrawTrack(); renderTrackPointsUI(); computeTrackMotion();
+      document.getElementById('mrmsStatus').textContent = `Cell ${track.label} is now driving the storm motion / lead-time decision above.`;
+    });
+  });
+}
+
+function updateMRMSAutoBtn(){
+  const btn = document.getElementById('mrmsAutoToggleBtn');
+  if(!btn) return;
+  btn.textContent = mrmsAutoInterval ? '■ Stop automatic tracking' : '▶ Start automatic tracking (every 3 min)';
+  btn.classList.toggle('active', !!mrmsAutoInterval);
+}
+
+document.getElementById('mrmsDetectBtn') && document.getElementById('mrmsDetectBtn').addEventListener('click', runMRMSAutoDetect);
+
+document.getElementById('mrmsAutoToggleBtn') && document.getElementById('mrmsAutoToggleBtn').addEventListener('click', ()=>{
+  if(mrmsAutoInterval){
+    clearInterval(mrmsAutoInterval); mrmsAutoInterval = null;
+  } else {
+    runMRMSAutoDetect();
+    mrmsAutoInterval = setInterval(runMRMSAutoDetect, 3*60*1000);
+  }
+  updateMRMSAutoBtn();
+});
+
+function compassToDeg(str){
+  const map = {N:0,NNE:22.5,NE:45,ENE:67.5,E:90,ESE:112.5,SE:135,SSE:157.5,S:180,SSW:202.5,SW:225,WSW:247.5,W:270,WNW:292.5,NW:315,NNW:337.5};
+  return map[str.toUpperCase()] !== undefined ? map[str.toUpperCase()] : null;
+}
+
+// Free, automatic, and real: NWS severe/tornado warnings carry the storm's actual
+// polygon location plus a reported motion ("moving ENE at 30 mph") straight from
+// the forecaster's radar analysis. No key needed, no fabricated data — just parsing
+// a structured product NWS already publishes. Only fires when a relevant warning
+// covering this venue is active; otherwise there's nothing to auto-populate from.
+function tryAutoPopulateTrack(alerts){
+  const banner = document.getElementById('autoTrackBanner');
+  if(!alerts || alerts.length === 0){ banner.style.display = 'none'; return; }
+
+  for(const a of alerts){
+    const p = a.properties;
+    if(!/tornado warning|severe thunderstorm warning|special weather statement|severe weather statement/i.test(p.event || '')) continue;
+    const geom = a.geometry;
+    if(!geom || geom.type !== 'Polygon' || !geom.coordinates || !geom.coordinates[0] || !geom.coordinates[0].length) continue;
+
+    const text = `${p.headline||''} ${p.description||''}`;
+    let headingDeg = null, speedMph = null;
+    let m = text.match(/moving\s+([NSEW]{1,3})\s+at\s+(\d{1,3})\s*mph/i);
+    if(m){ headingDeg = compassToDeg(m[1]); speedMph = parseFloat(m[2]); }
+    if(headingDeg === null){
+      m = text.match(/movement[^0-9]{0,25}(\d{1,3})\s*degrees?[^0-9]{0,10}(\d{1,3})\s*mph/i);
+      if(m){ headingDeg = parseFloat(m[1]); speedMph = parseFloat(m[2]); }
+    }
+    if(headingDeg === null || speedMph === null || isNaN(speedMph)) continue;
+
+    const coords = geom.coordinates[0]; // [[lon,lat], ...]
+    let sumLat=0, sumLon=0;
+    coords.forEach(c=>{ sumLon += c[0]; sumLat += c[1]; });
+    const lat = sumLat/coords.length, lon = sumLon/coords.length;
+
+    const leadMin = 12;
+    const back = destinationPoint(lat, lon, (headingDeg+180)%360, speedMph*(leadMin/60));
+    const now = new Date();
+    const nowHHMM = now.toTimeString().slice(0,5);
+    const earlierHHMM = addMinutesToHHMM(nowHHMM, -leadMin);
+
+    trackPoints = [
+      {lat: back.lat, lon: back.lon, time: earlierHHMM},
+      {lat, lon, time: nowHHMM}
+    ];
+    redrawTrack();
+    renderTrackPointsUI();
+    computeTrackMotion();
+
+    banner.style.display = 'block';
+    banner.innerHTML = `<div class="mode-text"><b style="color:var(--ink);">Auto-populated from active ${p.event}.</b> Reported movement: ${headingDeg.toFixed(0)}° at ${speedMph} mph, storm centroid from the warning polygon. This came straight from the NWS product text/geometry — not a fabricated track. Add more points manually as the warning updates, or re-check when a new warning is issued.</div>`;
+    return;
+  }
+  banner.style.display = 'none';
+}
+
+function renderTrackPointsUI(){
+  const el = document.getElementById('trackPointsList');
+  if(trackPoints.length === 0){
+    el.innerHTML = 'No track points yet — add at least two, a few minutes apart.';
+    return;
+  }
+  el.innerHTML = trackPoints.map((p,i)=>`
+    <div class="track-point-row">
+      <span class="idx">#${i+1}</span>
+      <input type="text" data-idx="${i}" data-field="lat" value="${p.lat.toFixed(4)}">
+      <input type="text" data-idx="${i}" data-field="lon" value="${p.lon.toFixed(4)}">
+      <input type="time" class="tp-time" data-idx="${i}" data-field="time" value="${p.time}">
+      <button class="log-del" data-del="${i}">Remove</button>
+    </div>`).join('');
+
+  el.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const idx = parseInt(inp.dataset.idx,10), field = inp.dataset.field;
+      const p = trackPoints[idx];
+      if(!p) return;
+      if(field === 'time') p.time = inp.value;
+      else p[field] = parseFloat(inp.value);
+      redrawTrack();
+      computeTrackMotion();
+    });
+  });
+  el.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      trackPoints.splice(parseInt(btn.dataset.del,10),1);
+      redrawTrack();
+      renderTrackPointsUI();
+      computeTrackMotion();
+    });
+  });
+}
+
+// Vector (speed/heading) between two track points — the shared math behind both
+// the results panel and the forecast extrapolation drawn on the radar.
+function computeLeg(a, b){
+  if(!a || !b || !a.time || !b.time) return null;
+  const [h1,m1] = a.time.split(':').map(Number);
+  const [h2,m2] = b.time.split(':').map(Number);
+  let elapsedMin = (h2*60+m2) - (h1*60+m1);
+  if(elapsedMin < 0) elapsedMin += 24*60;
+  if(elapsedMin === 0) return null;
+  const dist = haversineMiles(a.lat,a.lon,b.lat,b.lon);
+  return { speedMph: dist/(elapsedMin/60), headingDeg: bearingDeg(a.lat,a.lon,b.lat,b.lon), dist, elapsedMin };
+}
+
+function computeTrackMotion(){
+  if(trackPoints.length < 2){
+    document.getElementById('motionResult').style.display = 'none';
+    return 'missing';
+  }
+  if(!selectedStadium) return 'nostadium';
+
+  // Build minutes-since-first-point for every track point, carrying the same
+  // midnight-wraparound handling the old two-point method used, applied leg by leg.
+  let cum = 0, prevMin = null;
+  const withT = trackPoints.map(p=>{
+    const [h,m] = p.time.split(':').map(Number);
+    const mins = h*60+m;
+    if(prevMin !== null){
+      let delta = mins - prevMin;
+      if(delta < 0) delta += 24*60;
+      cum += delta;
+    }
+    prevMin = mins;
+    return { t: cum, lat: p.lat, lon: p.lon };
+  });
+
+  let leg, usedPoints;
+  if(withT.length === 2){
+    const a = withT[0], b = withT[1];
+    if(b.t === a.t){
+      alert("The last two track points have the same time — edit one so a speed can be calculated.");
+      return 'sametime';
+    }
+    const dist = haversineMiles(a.lat,a.lon,b.lat,b.lon);
+    leg = { speedMph: dist/((b.t-a.t)/60), headingDeg: bearingDeg(a.lat,a.lon,b.lat,b.lon),
+      dist, elapsedMin: b.t-a.t, curLat: b.lat, curLon: b.lon };
+    usedPoints = 2;
+  } else {
+    // Least-squares linear fit of lat & lon against time across every point in the
+    // track — a single noisy click no longer swings the whole estimate the way
+    // using only the last two points did.
+    const n = withT.length;
+    if(withT[n-1].t === withT[0].t){
+      alert("All track points share the same time — edit the times so a speed can be calculated.");
+      return 'sametime';
+    }
+    const tMean = withT.reduce((s,p)=>s+p.t,0)/n;
+    const latMean = withT.reduce((s,p)=>s+p.lat,0)/n;
+    const lonMean = withT.reduce((s,p)=>s+p.lon,0)/n;
+    let sTT=0, sTLat=0, sTLon=0;
+    withT.forEach(p=>{
+      const dt = p.t - tMean;
+      sTT += dt*dt;
+      sTLat += dt*(p.lat-latMean);
+      sTLon += dt*(p.lon-lonMean);
+    });
+    const slopeLat = sTT !== 0 ? sTLat/sTT : 0; // deg latitude per minute
+    const slopeLon = sTT !== 0 ? sTLon/sTT : 0; // deg longitude per minute
+
+    const lastT = withT[n-1].t;
+    const curLat = latMean + slopeLat*(lastT - tMean);
+    const curLon = lonMean + slopeLon*(lastT - tMean);
+
+    const northMiPerMin = slopeLat * 69.0;
+    const eastMiPerMin = slopeLon * 69.0 * Math.cos(curLat*Math.PI/180);
+    const speedMph = Math.hypot(northMiPerMin, eastMiPerMin) * 60;
+    let headingDeg = Math.atan2(eastMiPerMin, northMiPerMin) * 180/Math.PI;
+    headingDeg = (headingDeg + 360) % 360;
+
+    leg = { speedMph, headingDeg,
+      dist: haversineMiles(withT[0].lat, withT[0].lon, withT[n-1].lat, withT[n-1].lon),
+      elapsedMin: lastT - withT[0].t, curLat, curLon };
+    usedPoints = n;
+  }
+
+  const rangeToVenue = haversineMiles(leg.curLat, leg.curLon, selectedStadium.lat, selectedStadium.lon);
+  const etaMin = leg.speedMph > 0 ? (rangeToVenue/leg.speedMph)*60 : null;
+  lastStormEtaMinutes = etaMin;
+
+  document.getElementById('rDist').textContent = `${leg.dist.toFixed(1)} mi`;
+  document.getElementById('rTime').textContent = `${leg.elapsedMin} min`;
+  document.getElementById('rSpeed').textContent = `${leg.speedMph.toFixed(1)} mph`;
+  document.getElementById('rHeading').textContent = `${leg.headingDeg.toFixed(0)}° (${compassFromDeg(leg.headingDeg)})`;
+  document.getElementById('rRange').textContent = `${rangeToVenue.toFixed(1)} mi`;
+  document.getElementById('rETA').textContent = etaMin!==null ? `${etaMin.toFixed(0)} min` : "—";
+
+  const qualEl = document.getElementById('motionQualityNote');
+  if(qualEl){
+    qualEl.textContent = usedPoints > 2
+      ? `Smoothed across all ${usedPoints} track points (least-squares fit) — more robust than any single leg.`
+      : `From 2 points only — add a 3rd+ point (📍 Add track point again later) for a smoothed, less noise-prone estimate.`;
+  }
+
+  document.getElementById('motionResult').style.display = 'block';
+  updateDecision();
+  return 'ok';
+}
+
+function clearTrack(){
+  trackPoints = [];
+  trackArmed = false;
+  const armBtn = document.getElementById('armTrack');
+  if(armBtn){ armBtn.classList.remove('active'); armBtn.textContent = '📍 Add track point'; }
+  redrawTrack();
+  renderTrackPointsUI();
+  document.getElementById('motionResult').style.display = 'none';
+  lastStormEtaMinutes = null;
+  updateDecision();
+}
+
+document.getElementById('addPointManualBtn').addEventListener('click', ()=>{
+  const last = trackPoints[trackPoints.length-1];
+  const lat = last ? last.lat : (selectedStadium ? selectedStadium.lat : 0);
+  const lon = last ? last.lon : (selectedStadium ? selectedStadium.lon : 0);
+  const time = last ? addMinutesToHHMM(last.time, 5) : new Date().toTimeString().slice(0,5);
+  trackPoints.push({lat, lon, time});
+  if(trackPoints.length > 6) trackPoints.shift();
+  renderTrackPointsUI();
+  redrawTrack();
+});
+
+document.getElementById('recalcTrackBtn').addEventListener('click', ()=>{
+  const status = computeTrackMotion();
+  if(status === 'nostadium') alert("Select a stadium first so range/ETA to venue can be calculated.");
+  else if(status === 'missing') alert("Add at least two track points to calculate motion.");
+});
+
+document.getElementById('clearMotionBtn').addEventListener('click', clearTrack);
+
+/* ---------------- optional: WeatherSTEM closest-lightning widget (beta, best-effort) ---------------- */
+document.getElementById('toggleAdvApiBtn').addEventListener('click', ()=>{
+  const panel = document.getElementById('advApiPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+});
+
+let wsSavedKey = '';
+let wsMonitorTimer = null;
+
+(async function loadWsKey(){
+  try{
+    const r = await appStorage.get('weatherstem_key');
+    if(r && r.value){
+      wsSavedKey = r.value;
+      document.getElementById('wsApiKey').value = r.value;
+    }
+  }catch(e){ /* none saved yet */ }
+})();
+
+document.getElementById('wsSaveBtn').addEventListener('click', async ()=>{
+  const key = document.getElementById('wsApiKey').value.trim();
+  wsSavedKey = key;
+  try{
+    await appStorage.set('weatherstem_key', key);
+    document.getElementById('wsStatus').textContent = 'Saved for next time.';
+  }catch(e){
+    document.getElementById('wsStatus').textContent = 'Could not save the key right now.';
+  }
+  // If a venue's already selected and monitoring is on, apply the newly-saved key right away.
+  if(selectedStadium && document.getElementById('wsAutoMonitor').checked) refreshWeatherstemWidget({silent:false});
+});
+
+// silent=true suppresses the "select a venue" / "enter a key" nags, used for automatic
+// (venue-select and periodic monitor) calls so they don't interrupt with alerts of their own.
+function refreshWeatherstemWidget(opts){
+  opts = opts || {};
+  const status = document.getElementById('wsStatus');
+  if(!selectedStadium){ if(!opts.silent) status.textContent = 'Select a venue first.'; return; }
+  const key = (document.getElementById('wsApiKey').value.trim()) || wsSavedKey;
+  if(!key){ if(!opts.silent) status.textContent = 'Enter your WeatherSTEM API V2 key first.'; return; }
+  const distance = document.getElementById('wsDistance').value;
+  const venueLabel = `${selectedStadium.name} — ${selectedStadium.city}`;
+
+  // Set/refresh the required meta tag WeatherSTEM's widget script reads its key from.
+  let meta = document.querySelector('meta[name="Weatherstem-api-key"]');
+  if(!meta){
+    meta = document.createElement('meta');
+    meta.setAttribute('name', 'Weatherstem-api-key');
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute('content', key);
+
+  // Rebuild the widget container fresh so a stale prior render (from the last venue) can't linger.
+  const host = document.getElementById('wsWidgetHost');
+  host.innerHTML = '';
+  const widget = document.createElement('div');
+  widget.setAttribute('data-feature', 'Lightning');
+  widget.setAttribute('data-scope', `${selectedStadium.lat},${selectedStadium.lon}`);
+  widget.setAttribute('data-distance', distance);
+  widget.setAttribute('data-time', '60');
+  host.appendChild(widget);
+
+  // WeatherSTEM's apiv2 script scans the DOM once on load and doesn't document a
+  // re-scan/refresh call, so force one by removing any prior copy of the script and
+  // re-adding it with a cache-busting query string — this makes it re-execute and
+  // (hopefully) re-scan the page for the widget we just inserted.
+  document.querySelectorAll('script[data-ws-widget]').forEach(s => s.remove());
+  status.textContent = `Loading for ${venueLabel}…`;
+  const script = document.createElement('script');
+  script.src = `https://apiv2.weatherstem.com/apiv2.min.js?_=${Date.now()}`;
+  script.setAttribute('data-ws-widget', '1');
+  script.onerror = ()=>{ status.textContent = "Couldn't reach apiv2.weatherstem.com — check your network access to that domain."; };
+  document.body.appendChild(script);
+
+  setTimeout(()=>{
+    const rendered = widget.innerHTML.trim().length > 0 || widget.textContent.trim().length > 0;
+    if(!rendered){
+      status.textContent = "No content rendered yet — this usually means the key isn't whitelisted for this page's domain, or WeatherSTEM's script didn't pick up the re-scan. Double-check the allowed hosts on your WeatherSTEM key match this page's address exactly.";
+    } else {
+      status.textContent = `${venueLabel} — searching within ${distance} mi. Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}.`;
+    }
+  }, 2500);
+}
+
+document.getElementById('wsCheckBtn').addEventListener('click', ()=> refreshWeatherstemWidget({silent:false}));
+
+function stopWsMonitor(){
+  if(wsMonitorTimer){ clearInterval(wsMonitorTimer); wsMonitorTimer = null; }
+}
+
+function startWsMonitor(){
+  stopWsMonitor();
+  wsMonitorTimer = setInterval(()=>{
+    if(selectedStadium && document.getElementById('wsAutoMonitor').checked) refreshWeatherstemWidget({silent:true});
+  }, 3*60*1000);
+}
+
+document.getElementById('wsAutoMonitor').addEventListener('change', (e)=>{
+  if(e.target.checked){
+    startWsMonitor();
+    if(selectedStadium) refreshWeatherstemWidget({silent:true});
+  } else {
+    stopWsMonitor();
+  }
+});
+
+startWsMonitor();
+
+/* ---------------- storm mode classifier ---------------- */
+document.getElementById('classifyBtn').addEventListener('click', ()=>{
+  const get = id => document.getElementById(id).checked;
+  const hook = get('c1'), couplet = get('c2'), isolated = get('c3'), bow = get('c4'),
+        line = get('c5'), rfd = get('c6'), multicell = get('c7'), anvil = get('c8'),
+        cgrate = get('c9'), pos = get('c10');
+
+  let label, color, text;
+
+  if((hook || couplet || rfd) && isolated){
+    label = "SUPERCELL"; color = "var(--echo-red)";
+    text = "Rotating, discrete cell signatures present. Supercells can produce sudden, high-end lightning, damaging wind, and are the most likely mode to change intensity with little notice. Treat as highest-lead-time scenario regardless of current distance.";
+  } else if(bow && line){
+    label = "SQUALL LINE — BOW ECHO (QLCS)"; color = "var(--echo-purple)";
+    text = "Bowing segment within a continuous line indicates an accelerating surge of damaging straight-line wind (and possible embedded rotation). Gust front often outruns the visible core — assume the wind/lightning threat arrives earlier than the radar core suggests.";
+  } else if(line){
+    label = "SQUALL LINE / LINEAR MCS"; color = "var(--echo-yellow)";
+    text = "Organized line of convection. Expect widespread lightning and gusty winds along the entire line rather than one focused cell — clearing/reopening decisions should account for the trailing stratiform lightning that often continues after the leading edge passes.";
+  } else if(multicell){
+    label = "MULTICELL CLUSTER"; color = "var(--echo-yellow)";
+    text = "Group of cells at various stages, with new development possible on the flank. Can regenerate over the same area, extending the total lightning threat window beyond a single cell's lifespan.";
+  } else if(isolated){
+    label = "SINGLE-CELL / AIRMASS STORM"; color = "var(--echo-green)";
+    text = "Discrete, non-rotating cell. Typically shorter-lived and more predictable, but can still produce lightning well ahead of the core — don't rely on radar core position alone.";
+  } else {
+    label = "INSUFFICIENT SIGNATURE SELECTED"; color = "var(--ink-faint)";
+    text = "Select at least one structural feature (isolated cell, line, bow, rotation) to get a mode estimate.";
+  }
+
+  let extra = "";
+  if(anvil){
+    extra += " Forward anvil extension noted — lightning (including \u201cbolt from the blue\u201d strikes) can reach the venue well before the visible precipitation core; add standoff distance to any clearing decision.";
+  }
+  if(cgrate){
+    extra += " CG flash rate is climbing quickly, consistent with strengthening updraft — expect the threat to intensify faster than storm translation speed alone would suggest.";
+  }
+  if(pos){
+    extra += " Predominantly positive CG activity in the anvil region is associated with strikes at greater range from the core than typical negative CG storms.";
+  }
+
+  document.getElementById('modeBadge').textContent = label;
+  document.getElementById('modeBadge').style.background = color;
+  document.getElementById('modeBadge').style.color = (color === 'var(--echo-yellow)') ? '#3a2f00' : '#fff';
+  document.getElementById('modeText').textContent = text + extra;
+  document.getElementById('modeResult').style.display = 'flex';
+  updateModeSummary();
+});
+
+/* ---------------- venue factors & decision ---------------- */
+let venueState = { alcohol:0, crowd:0, disabled:0, egress:0, shelterDist:0, lighting:0, familiarity:0, crowdSet:false,
+  age:1, fanratio:0, language:0, alertreach:0, seating:1, tailgate:0, adaptive:false, minors:false };
+
+// Re-highlights every toggle-opt button to match the current venueState values —
+// used after loading an event-type preset, and when a new venue resets state.
+function syncAllToggleUI(){
+  document.querySelectorAll('.toggle-opt').forEach(opt=>{
+    const group = opt.dataset.group;
+    const val = parseInt(opt.dataset.val,10);
+    opt.classList.toggle('active', venueState[group] === val);
+  });
+}
+
+/* ---------------- event-type presets (one click sets several demographic factors) ---------------- */
+// Values mirror the lightning-dashboard's DAST demographic model; attendancePct
+// isn't used here (crowd size already comes from the Crowd density toggle above)
+// but is kept in the table as documentation of the assumption behind each preset.
+const EVENT_PRESETS = {
+  standard:        { },
+  rivalryGame:      { crowd:2, alcohol:1, fanratio:1, tailgate:2 },
+  homecoming:       { crowd:2, age:2, fanratio:0, alcohol:1, tailgate:2, disabled:1 },
+  familyDay:        { age:2 },
+  studentNight:     { seating:0, alertreach:0 },
+  alumniDay:        { age:0, fanratio:0, disabled:1 },
+  schoolFieldTrip:  { age:2, minors:true },
+  youthTournament:  { age:2, alertreach:2, minors:true, crowd:1 } // multiple teams + families on-site at once — moderate at minimum, bump to Packed for a big bracket/showcase
+};
+const DEMO_DEFAULTS = { age:1, fanratio:0, language:0, alertreach:0, seating:1, tailgate:0, adaptive:false, minors:false };
+
+document.getElementById('eventTypeRow').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.pill-btn');
+  if(!btn) return;
+  document.querySelectorAll('#eventTypeRow .pill-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const preset = EVENT_PRESETS[btn.dataset.preset] || {};
+  const keys = ['age','fanratio','language','alertreach','seating','tailgate','crowd','alcohol','disabled','egress','shelterDist','lighting','familiarity'];
+  keys.forEach(k=>{
+    if(k in preset) venueState[k] = preset[k];
+    else if(k === 'tailgate') venueState[k] = estimateDefaultTailgate(selectedStadium); // keep the football/capacity auto-estimate unless this preset overrides it
+    else if(k in DEMO_DEFAULTS) venueState[k] = DEMO_DEFAULTS[k];
+  });
+  venueState.adaptive = !!preset.adaptive;
+  venueState.minors = !!preset.minors;
+  document.getElementById('demoAdaptive').checked = venueState.adaptive;
+  document.getElementById('demoMinors').checked = venueState.minors;
+  document.getElementById('tailgateAutoNote').textContent = ('tailgate' in preset) ? '' : tailgateAutoNoteText(selectedStadium, venueState.tailgate);
+  if('crowd' in preset) venueState.crowdSet = true;
+  syncAllToggleUI();
+  updateDecision();
+  if(selectedStadium) saveVenueSettings(selectedStadium);
+});
+
+document.getElementById('demoAdaptive').addEventListener('change', (e)=>{ venueState.adaptive = e.target.checked; updateDecision(); if(selectedStadium) saveVenueSettings(selectedStadium); });
+document.getElementById('demoMinors').addEventListener('change', (e)=>{ venueState.minors = e.target.checked; updateDecision(); if(selectedStadium) saveVenueSettings(selectedStadium); });
+
+// Auto-drafted PA / push-alert language, built from the same demographic factors
+// driving the lead-time calculation above — not a substitute for the venue's own
+// approved emergency-announcement script, just a starting point.
+function renderAlertCopy(){
+  const box = document.getElementById('alertCopyBox');
+  if(!box) return;
+  const lines = ["Lightning has been detected in the area. Please move calmly to your nearest designated shelter location."];
+  if(venueState.language === 2) lines.push("Provide bilingual / visual signage and translated push alert text where available.");
+  if(venueState.minors) lines.push("Chaperones and group leaders: report to your designated meeting point for headcount.");
+  if(venueState.disabled === 2) lines.push("Accessible routes are open at all designated shelter points — additional staff are assisting mobility-impaired guests.");
+  if(venueState.adaptive) lines.push("A low-stimulus shelter area is available for sensory-sensitive guests; visual cues accompany all audio announcements.");
+  if(venueState.fanratio >= 1) lines.push("Extra staff and signage are posted at exits to direct guests unfamiliar with the venue to the nearest shelter.");
+  if(venueState.alertreach === 2) lines.push("Repeat this announcement at least three times across all public-address zones — do not rely on app push alerts alone.");
+  let html = lines.map(l=>`<div class="alert-copy-line">${l}</div>`).join('');
+  if(venueState.tailgate >= 1){
+    html += `<div class="alert-copy-line exterior">Exterior / parking-lot guests: return to and shelter inside hard-topped vehicles. Avoid open-sided tents, canopies, and metal bleacher structures.</div>`;
+  }
+  box.innerHTML = html;
+}
+
+document.querySelectorAll('.toggle-opt').forEach(opt=>{
+  opt.addEventListener('click', ()=>{
+    const group = opt.dataset.group;
+    document.querySelectorAll(`.toggle-opt[data-group="${group}"]`).forEach(o=>o.classList.remove('active'));
+    opt.classList.add('active');
+    venueState[group] = parseInt(opt.dataset.val,10);
+    if(group === 'crowd') venueState.crowdSet = true;
+    if(group === 'tailgate') document.getElementById('tailgateAutoNote').textContent = 'Manually set — overriding the auto-estimate.';
+    updateDecision();
+    if(selectedStadium) saveVenueSettings(selectedStadium);
+  });
+});
+
+// Estimates attendance from the venue's real listed capacity and the selected
+// crowd-density level, then gives general, code-based sheltering principles scaled
+// to that headcount. This deliberately does NOT invent named buildings or gate-by-gate
+// routes for a specific venue — those are set by each venue's own emergency action
+// plan, which this app has no access to, and getting them wrong would be dangerous.
+function updateCrowdAndShelter(){
+  const estEl = document.getElementById('crowdEstimate');
+  const panel = document.getElementById('shelterGuidance');
+  const badge = document.getElementById('shelterHeadcountBadge');
+  const text = document.getElementById('shelterGuidanceText');
+
+  if(!selectedStadium){
+    estEl.textContent = "Select a venue and a crowd level to estimate attendance";
+    panel.style.display = 'none';
+    document.getElementById('capBarTrack').style.display = 'none';
+    return;
+  }
+  if(!venueState.crowdSet){
+    estEl.textContent = `Capacity: ${selectedStadium.capacity.toLocaleString()} — pick a crowd level above to estimate attendance`;
+    panel.style.display = 'none';
+    document.getElementById('capBarTrack').style.display = 'none';
+    return;
+  }
+
+  const cap = selectedStadium.capacity;
+  const bands = {
+    0: {label:"Sparse", lo:0.05, hi:0.20},
+    1: {label:"Moderate", lo:0.40, hi:0.70},
+    2: {label:"Packed / sellout", lo:0.90, hi:1.00}
+  };
+  const band = bands[venueState.crowd];
+  const lo = Math.round(cap*band.lo), hi = Math.round(cap*band.hi);
+
+  const barTrack = document.getElementById('capBarTrack');
+  const barFill = document.getElementById('capBarFill');
+  barTrack.style.display = 'block';
+  const midPct = Math.min(100, ((lo+hi)/2 / cap) * 100);
+  barFill.style.width = `${midPct.toFixed(0)}%`;
+  barFill.style.background = midPct > 85
+    ? 'linear-gradient(90deg,var(--warn),var(--echo-red))'
+    : midPct > 45
+      ? 'linear-gradient(90deg,var(--caution),#f2b56b)'
+      : 'linear-gradient(90deg,var(--accent),var(--electric))';
+
+  if(selectedStadium.sport === 'golf'){
+    estEl.innerHTML = `Approx. gallery at "${band.label}" (major-tournament scale, not a fixed capacity): <b style="color:var(--ink);">${lo.toLocaleString()}–${hi.toLocaleString()}</b> — a routine round has only a handful of golfers/caddies on the course, not a crowd like this`;
+    const mid = Math.round((lo+hi)/2);
+    badge.textContent = `~${mid.toLocaleString()} ON COURSE (TOURNAMENT SCALE)`;
+    text.innerHTML = `
+      <b style="color:var(--ink);">A golf course has no concourse to shelter under — this is the highest lightning-exposure sport there is.</b><br>
+      • Everyone on course (players, caddies, spectators, staff) needs to head to a <b>permanent enclosed building</b> — the clubhouse, pro shop, or a maintenance building with wiring/plumbing.<br>
+      • <span style="color:var(--caution);">Small open-sided rain/picnic shelters on a course are NOT lightning-safe</span> — NWS guidance explicitly excludes them. If that's the only option, a hard-topped vehicle with the windows up is safer than an open shelter.<br>
+      • Get away from water hazards, tall isolated trees, and anything metal — carts, umbrellas, clubs. Don't hold clubs or push/pull carts while moving to shelter.<br>
+      • If caught in the open with no shelter reachable, spread out from other people (don't cluster in a group) and get to the lowest nearby ground, away from the highest point around you.<br>
+      • Tournament-scale galleries take considerably longer to clear than a stadium crowd of the same size, since people are spread across an entire course rather than funneled toward a few gates — start the clearing call earlier, not later.<br><br>
+      <span style="color:var(--caution);">This app doesn't know this course's actual shelter building locations or marshal procedures — those come from the course's own severe-weather plan (for tournaments, the PGA Tour/rules officials' plan). Use the general principles above only until you can confirm it.</span>`;
+    panel.style.display = 'block';
+    return;
+  }
+
+  estEl.innerHTML = `Estimated attendance at "${band.label}": <b style="color:var(--ink);">${lo.toLocaleString()}–${hi.toLocaleString()}</b> of ${cap.toLocaleString()} capacity`;
+
+  const mid = Math.round((lo+hi)/2);
+  badge.textContent = `~${mid.toLocaleString()} PEOPLE TO MOVE`;
+
+  // General clearing-time principle: assembly-venue codes generally assume large
+  // crowds can move to enclosed shelter in an orderly, non-panic egress; more people
+  // and more mobility-assisted attendees both push that time up, which is why those
+  // already add minutes in the lead-time panel above.
+  let clearNote;
+  if(mid < 5000) clearNote = "a smaller crowd like this can typically reach enclosed shelter quickly if exits aren't bottlenecked";
+  else if(mid < 20000) clearNote = "a crowd this size needs multiple exits moving simultaneously — don't rely on a single gate or tunnel";
+  else if(mid < 50000) clearNote = "a crowd this size takes real, multi-minute orderly movement even with all exits open — this is where the extra lead time in the panel above matters most";
+  else clearNote = "at this size, full-stadium movement takes on the order of 15-20+ minutes under good conditions — treat the venue-adjusted lead time above as a floor, not a target";
+
+  text.innerHTML = `
+    <b style="color:var(--ink);">General principles</b> (not venue-specific routes — see below):<br>
+    • Move people to the nearest fully <b>enclosed, roofed structure</b> first — for most of these stadiums that's the <b>concourse level under the stands</b>, which is reachable faster than leaving the venue entirely.<br>
+    • Avoid open bleachers, metal railings, light/speaker poles, and the field itself — none of that is safe shelter.<br>
+    • If leaving the stadium grounds, the target is a permanent building with wiring and plumbing (not a picnic shelter, dugout, or open-sided structure) — a parking garage is an acceptable fallback if no building is reachable.<br>
+    • For this headcount, ${clearNote}.<br>
+    • Most NCAA venues stop play/activity when lightning is detected within an 8-mile radius and hold for at least 30 minutes after the last strike in range — consistent with the 30-30 baseline this tool uses.<br><br>
+    <span style="color:var(--caution);">This app doesn't know this venue's actual gate numbers, tunnel locations, or designated shelter buildings — those come from the venue's own emergency action plan / clear-weather policy. Use the general principles above only until you can confirm the venue-specific plan.</span>`;
+
+  panel.style.display = 'block';
+}
+
+function updateDecision(){
+  updateCrowdAndShelter();
+  const BASE = 15; // NWS 30-30 rule floor, in minutes of suspended-activity lead time
+
+  const factors = [
+    { on: venueState.alcohol === 1, label: "Alcohol being served", add: 5 },
+    { on: venueState.crowd === 1, label: "Moderate crowd", add: 5 },
+    { on: venueState.crowd === 2, label: "Packed / sellout crowd", add: 10 },
+    { on: venueState.disabled === 1, label: "Some attendees need mobility assistance", add: 5 },
+    { on: venueState.disabled === 2, label: "Many ADA / mobility-assisted attendees", add: 10 },
+    { on: venueState.egress === 1, label: "Limited or single-file egress", add: 8 },
+    { on: venueState.shelterDist === 1, label: "Shelter 2–5 min walk away", add: 4 },
+    { on: venueState.shelterDist === 2, label: "Shelter >5 min walk away", add: 9 },
+    { on: venueState.lighting === 1, label: "Dusk/dawn — reduced visibility", add: 3 },
+    { on: venueState.lighting === 2, label: "Night event — reduced visibility", add: 6 },
+    { on: venueState.familiarity === 1, label: "One-off/touring crowd unfamiliar with venue", add: 5 },
+    { on: venueState.age === 2, label: "Family-heavy crowd (young children)", add: 6 },
+    { on: venueState.fanratio === 1, label: "Mixed home/visiting fans", add: 2 },
+    { on: venueState.fanratio === 2, label: "Mostly visiting fans (less familiar with venue)", add: 5 },
+    { on: venueState.language === 1, label: "Moderate ESL / language population", add: 2 },
+    { on: venueState.language === 2, label: "High ESL / language population", add: 5 },
+    { on: venueState.alertreach === 1, label: "Mixed alert reach (not all-digital)", add: 2 },
+    { on: venueState.alertreach === 2, label: "PA-dependent alert reach", add: 4 },
+    { on: venueState.seating === 1, label: "Mixed seating structure", add: 3 },
+    { on: venueState.seating === 2, label: "Mostly fixed-seat / narrow-aisle sections", add: 6 },
+    { on: venueState.adaptive, label: "Adaptive / sensory-accommodation attendees present", add: 5 },
+    { on: venueState.minors, label: "Unaccompanied minors / school groups present", add: 4 }
+  ];
+  const add = factors.filter(f=>f.on).reduce((sum,f)=>sum+f.add,0);
+  const adjusted = BASE + add;
+  renderAlertCopy();
+
+  document.getElementById('baseLead').textContent = `${BASE} min`;
+  document.getElementById('adjLead').textContent = `${adjusted} min`;
+
+  const bd = document.getElementById('leadBreakdown');
+  bd.innerHTML = factors.map(f=>`
+    <div class="breakdown-row ${f.on?'on':''}">
+      <span>${f.on?'✓':'·'} ${f.label}</span>
+      <span class="amt">${f.on? '+'+f.add+' min' : '—'}</span>
+    </div>`).join('') + `
+    <div class="breakdown-row on" style="border-top:1px solid var(--line-bright);padding-top:5px;margin-top:2px;">
+      <span>Total added</span><span class="amt">+${add} min</span>
+    </div>`;
+
+  const etaEl = document.getElementById('etaLead');
+  const marginEl = document.getElementById('marginLead');
+  const card = document.getElementById('decisionCard');
+  const dot = document.getElementById('decisionDot');
+  const title = document.getElementById('decisionTitle');
+  const body = document.getElementById('decisionBody');
+
+  if(lastStormEtaMinutes === null){
+    etaEl.textContent = "—";
+    marginEl.textContent = "—";
+    card.className = "decision safe";
+    dot.style.background = "var(--safe)";
+    title.textContent = `Recommended lead time: ${adjusted} min once lightning/thunder criteria are met`;
+    body.textContent = "Calculate storm motion above to compare this lead time against the storm's actual ETA to the venue.";
+    return;
+  }
+
+  etaEl.textContent = `${lastStormEtaMinutes.toFixed(0)} min`;
+  const margin = lastStormEtaMinutes - adjusted;
+  marginEl.textContent = `${margin>=0?'+':''}${margin.toFixed(0)} min`;
+
+  if(margin >= 10){
+    card.className = "decision safe";
+    dot.style.background = "var(--safe)";
+    title.textContent = "Time available exceeds required lead time";
+    body.textContent = `At the current storm speed, you have more runway than the ${adjusted}-minute venue-adjusted lead time requires. Keep monitoring — storm speed and mode can change quickly.`;
+  } else if(margin >= 0){
+    card.className = "decision caution";
+    dot.style.background = "var(--caution)";
+    title.textContent = "Margin is thin — begin clearing procedures now";
+    body.textContent = `Storm ETA is close to the ${adjusted}-minute lead time this venue needs. Start lightning-delay/evacuation procedures immediately rather than waiting for the 30-30 trigger to fire at the venue itself.`;
+  } else {
+    card.className = "decision danger";
+    dot.style.background = "var(--danger)";
+    title.textContent = "Storm ETA is inside the required lead time — act now";
+    body.textContent = `At the current speed, the storm will arrive before a delay called at the 30-30 threshold could safely clear this crowd, given alcohol service, density, and mobility factors. Initiate the delay/evacuation immediately and communicate the shortened window to staff.`;
+  }
+}
+updateDecision();
+</script>
+</body>
+</html>
